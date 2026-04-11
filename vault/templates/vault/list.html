@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Document Vault — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Category icon accent colors — page-specific */
+  .vault-icon { width: 40px; height: 40px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .vault-icon-formation  { background: rgba(251, 191, 36, 0.12); color: var(--color-warning); }
+  .vault-icon-legal      { background: rgba(6, 182, 212, 0.12); color: var(--color-info); }
+  .vault-icon-financial  { background: rgba(52, 211, 153, 0.12); color: var(--color-success); }
+  .vault-icon-insurance  { background: rgba(251, 191, 36, 0.12); color: var(--color-warning); }
+  .vault-icon-tax        { background: rgba(248, 113, 113, 0.12); color: var(--color-danger); }
+  .vault-icon-trademark  { background: rgba(6, 182, 212, 0.12); color: var(--color-info); }
+  .vault-icon-default    { background: var(--bg-surface-hover); color: var(--text-muted); }
+
+  .vault-card-body { flex: 1; min-width: 0; }
+  .vault-card-title { font-size: var(--text-sm); font-weight: 500; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vault-card-category { font-size: var(--text-xs); color: var(--text-muted); margin-top: var(--space-1); }
+  .vault-card-desc { font-size: var(--text-xs); color: var(--text-secondary); margin-top: var(--space-2); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .vault-card-meta { display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-2); font-size: var(--text-xs); color: var(--text-muted); }
+  .vault-card-tags { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-2); }
+
+  .vault-empty { grid-column: 1 / -1; padding: var(--space-12) 0; text-align: center; }
+  .vault-empty-icon { width: 48px; height: 48px; color: var(--text-muted); margin: 0 auto var(--space-4); }
+
+  .ncc-filter-bar .ncc-select { width: auto; min-width: 160px; }
+  .ncc-filter-bar .ncc-input  { width: auto; min-width: 200px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="ncc-page-header">
+  <h1 class="ncc-page-title">Document Vault</h1>
+  <a href="{% url 'vault:upload' %}" class="ncc-btn ncc-btn-primary ncc-btn-sm">
+    <i data-lucide="plus" style="width:14px; height:14px;"></i> Upload Document
+  </a>
+</div>
+
+<!-- Filters -->
+<form method="get" class="ncc-filter-bar">
+  <label for="vault-category-filter" class="sr-only">Category</label>
+  <select id="vault-category-filter" name="category" class="ncc-select" onchange="this.form.submit()">
+    <option value="">All Categories</option>
+    {% for val, label in categories %}
+    <option value="{{ val }}" {% if selected_category == val %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <input type="text" name="q" value="{{ search }}" placeholder="Search title or tags..." class="ncc-input">
+  <button type="submit" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Search</button>
+</form>
+
+<!-- Document grid -->
+<div class="ncc-doc-grid">
+  {% for doc in documents %}
+  <a href="{% url 'vault:detail' doc.pk %}" class="ncc-card ncc-stagger" style="display:block; text-decoration:none;">
+    <div style="display:flex; align-items:flex-start; gap:var(--space-3);">
+      <div class="vault-icon
+        {% if doc.category == 'formation' %}vault-icon-formation
+        {% elif doc.category == 'legal' %}vault-icon-legal
+        {% elif doc.category == 'financial' %}vault-icon-financial
+        {% elif doc.category == 'insurance' %}vault-icon-insurance
+        {% elif doc.category == 'tax' %}vault-icon-tax
+        {% elif doc.category == 'trademark' %}vault-icon-trademark
+        {% else %}vault-icon-default{% endif %}">
+        <i data-lucide="file-text" style="width:20px; height:20px;"></i>
+      </div>
+      <div class="vault-card-body">
+        <p class="vault-card-title">{{ doc.title }}</p>
+        <p class="vault-card-category">{{ doc.get_category_display }}</p>
+        {% if doc.description %}
+        <p class="vault-card-desc">{{ doc.description }}</p>
+        {% endif %}
+        <div class="vault-card-meta">
+          <span>{{ doc.file_size_display }}</span>
+          <span>{{ doc.uploaded_at|date:"M d, Y" }}</span>
+        </div>
+        {% if doc.tag_list %}
+        <div class="vault-card-tags">
+          {% for tag in doc.tag_list %}
+          <span class="ncc-badge ncc-badge-draft">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </a>
+  {% empty %}
+  <div class="vault-empty">
+    <div class="vault-empty-icon">
+      <i data-lucide="archive" style="width:48px; height:48px;"></i>
+    </div>
+    <p class="text-sm text-secondary">No documents in the vault yet.</p>
+    <a href="{% url 'vault:upload' %}" class="ncc-btn ncc-btn-primary ncc-btn-sm" style="margin-top:var(--space-3); display:inline-flex;">
+      Upload your first document
+    </a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

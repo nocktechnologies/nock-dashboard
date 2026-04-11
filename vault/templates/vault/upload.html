@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Document — NockCC{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">Upload Document</h1>
+    <a href="{% url 'vault:list' %}" class="text-xs text-gray-400 hover:text-white transition">Back to Vault</a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="space-y-4">
+    {% csrf_token %}
+
+    {% if form.errors %}
+    <div class="bg-red-900/50 text-red-300 border border-red-800 rounded-md px-4 py-2 text-sm">
+      Please fix the errors below.
+    </div>
+    {% endif %}
+
+    <div>
+      <label for="id_title" class="block text-sm font-medium text-gray-300 mb-1">Title</label>
+      {{ form.title }}
+    </div>
+
+    <div>
+      <label for="id_category" class="block text-sm font-medium text-gray-300 mb-1">Category</label>
+      {{ form.category }}
+    </div>
+
+    <div>
+      <label for="id_file" class="block text-sm font-medium text-gray-300 mb-1">File</label>
+      {{ form.file }}
+    </div>
+
+    <div>
+      <label for="id_description" class="block text-sm font-medium text-gray-300 mb-1">Description</label>
+      {{ form.description }}
+    </div>
+
+    <div>
+      <label for="id_tags" class="block text-sm font-medium text-gray-300 mb-1">Tags</label>
+      {{ form.tags }}
+    </div>
+
+    <button type="submit"
+            class="w-full bg-brand-500 hover:bg-brand-500/80 text-white font-medium py-2.5 px-4 rounded-md text-sm transition">
+      Upload Document
+    </button>
+  </form>
+</div>
+{% endblock %}
