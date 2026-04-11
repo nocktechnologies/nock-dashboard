@@ -219,21 +219,6 @@ DISCORD_WEBHOOK_URL = env("DISCORD_WEBHOOK_URL", default="")
 # NockCC API key for session tracking endpoints
 NOCKCC_API_KEY = env("NOCKCC_API_KEY", default="")
 
-# OAuth 2.1 shim for the MCP Streamable HTTP transport
-# ----------------------------------------------------
-# claude.ai custom connectors require OAuth 2.1 per the MCP spec
-# 2025-03-26 (RFC 9728 resource metadata + RFC 8414 auth server metadata
-# + RFC 7591 dynamic client registration + RFC 7636 PKCE). This single-
-# user instance runs a minimal OAuth shim that auto-approves every
-# authorize request and issues NOCKCC_API_KEY as the access token, so
-# the existing BearerAuthMiddleware on /mcp/ keeps working unchanged.
-#
-# OAUTH_ISSUER_URL is the absolute base URL that appears in the OAuth
-# discovery metadata — must match what claude.ai sees in the browser.
-# Defaults to the production host so local dev can leave it blank.
-NOCKCC_OAUTH_ENABLED = env.bool("NOCKCC_OAUTH_ENABLED", default=False)
-OAUTH_ISSUER_URL = env("OAUTH_ISSUER_URL", default="https://cc.nocktechnologies.io")
-
 # Telegram notifications (server-side, always-on via Railway)
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
 TELEGRAM_CHAT_ID = env("TELEGRAM_CHAT_ID", default="")

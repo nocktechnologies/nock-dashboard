@@ -1,7 +1,3 @@
-# MCP server dependency — both the stdio entry point and the Streamable
-# HTTP transport mounted at /mcp live inside this Django process. Pulls
-# in starlette, sse-starlette, pydantic, uvicorn, etc. as transitive deps.
-mcp>=1.23.0,<2.0.0
 Django==5.0.4
 django-environ==0.11.2
 psycopg2-binary==2.9.9
@@ -9,10 +5,11 @@ psycopg[binary]==3.2.4
 channels==4.1.0
 channels-redis==4.2.0
 daphne==4.1.2
-# Uvicorn is the production ASGI server — Daphne 4.1.2 lacks ASGI
-# lifespan support, so the MCP session manager's task group never
-# starts under Daphne. Uvicorn ships via mcp's transitive deps but
-# pin it directly so production builds don't accidentally drop it.
+# Uvicorn is the production ASGI server. Historical context: Daphne
+# 4.1.2 does not implement the ASGI lifespan protocol — future ASGI
+# components that need startup/shutdown lifecycle hooks (e.g. background
+# task groups) must run under uvicorn to function correctly. See
+# .claude/lessons/archived/asgi-deployment.md for the full lesson.
 uvicorn[standard]==0.44.0
 celery==5.3.6
 redis==5.0.4

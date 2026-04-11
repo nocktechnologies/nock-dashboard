@@ -17,6 +17,43 @@ product fork context in PR 6 (Docs + deployment).
 
 ---
 
+## [chore] — 2026-04-11 — Strip MCP / OAuth-shim refs
+
+### Removed
+- **`core/oauth/` OAuth 2.1 shim and its entire test suite** — The shim (`__init__.py`, `metadata.py`, `storage.py`, `urls.py`, `views.py` + `core/tests/test_oauth.py`, ~1512 lines total) was built upstream in NockCC to let claude.ai custom connectors authenticate against an MCP Streamable HTTP transport at `/mcp/`. The fork never had `mcp_server/`, so the shim was gating nothing — dead code with its own attack surface. Deleted outright. The `NOCKCC_OAUTH_ENABLED` + `OAUTH_ISSUER_URL` settings that configured it are also removed from `config/settings/base.py`. URL mounts at `/.well-known/` and `/oauth/` are removed from `config/urls.py`.
+- **MCP references in `config/asgi.py`** — The upstream ASGI entry point wrapped Django inside a Starlette outer router to mount an MCP sub-app at `/mcp`, with a custom lifespan hook to drive the MCP session manager's `run()` task group. This fork never had the MCP sub-app to mount. The broken top-level `from mcp_server.http_app import build_http_app` was silently resolving to nock-command-center's project tree via a stale venv `sys.path` entry; on a clean venv, every boot failed with `ModuleNotFoundError`. Rewrote `config/asgi.py` as a plain Django + Channels ASGI app (`ProtocolTypeRouter` with `http` pointed at `django_asgi_app`, `websocket` pointed at the remote-agent WebSocket router). 107 lines → 36 lines.
+- **`mcp>=1.23.0,<2.0.0` pin from `requirements.txt`** — was the first dep listed. Transitive pulls (`starlette`, `sse-starlette`, `pydantic`) are either still available from other deps (`pydantic` via `openai` + `anthropic` + `pydantic-settings`) or no longer needed (`starlette` and `sse-starlette` were exclusively used by the MCP sub-app). Uvicorn is pinned independently and stays.
+- **`mcp_server/tests` from `pytest.ini` `testpaths`** — latent gotcha flagged during PR 1 baseline. The directory never existed in the fork; pytest was silently skipping the missing path. Entry removed.
+
+### Changed
+- **`.claude/lessons/asgi-deployment.md` → `.claude/lessons/archived/asgi-deployment.md`** — the lesson doc describes Daphne 4.1.2's broken ASGI lifespan implementation and why production must run uvicorn. The specific failure mode it captured (MCP session manager task group never starting under Daphne) is obsolete for the product fork, but the underlying Daphne lifespan bug is a real piece of ASGI tribal knowledge that future fork work may need. Moved to `archived/` rather than deleted so the lesson stays discoverable.
+- **Uvicorn pin comment in `requirements.txt`** simplified — removed the MCP-specific framing ("the MCP session manager's task group never starts under Daphne"), kept the generic Daphne-lacks-lifespan-protocol note with a cross-reference to the archived lesson doc.
+
+### Why this chore PR exists (inherited fork bug discovery)
+
+This cleanup was triggered by PR 2 (django-allauth) baseline verification. The local dev `.venv` on `nock-dashboard` was a file-level copy of `nock-command-center/.venv` with the internal `pyvenv.cfg` still pointing at the nock-cc path — so every `pip install`, every `python -c "import ..."`, and every Django test run was silently resolving modules through nock-cc's `sys.path` as a fall-through. This masked the entire class of "fork references code that doesn't exist in the fork" bugs.
+
+When the venv was recreated from scratch as part of CP0 of PR 2, the masking stopped and the `ModuleNotFoundError` on `config.asgi` import surfaced immediately. That meant **the fork has never been deployable** — production `uvicorn config.asgi:application --lifespan on` would have failed at boot, `manage.py runserver` would have failed (Daphne is first in `INSTALLED_APPS`, so Django uses the channels runserver override which also loads the ASGI app). No one had noticed because the broken venv + the "we haven't deployed the fork yet" status were hiding each other.
+
+This is the third bug in the fork bestiary that surfaced from the initial `cp -r` fork (PR 0 was the missing `notifications`/`remote`/`vault` apps; PR 2 CP0 was the broken venv; this PR is the ASGI / OAuth shim dead code). Better to find them now than after customers are on the thing.
+
+### Verification
+
+- `python -c "import config.asgi"` — **loads successfully** (this was broken on fresh venv before the strip)
+- `python manage.py check` — clean (0 issues)
+- `python manage.py makemigrations --check --dry-run` — No changes detected
+- `python manage.py runserver 0.0.0.0:8765 --noreload` — boots, `/accounts/login/` returns HTTP 200 (the existing hand-rolled login view still works)
+- `pytest` full suite — **728 passed, 2 failed** (the 2 failures are the pre-existing TZ-related failures in `pipeline/tests/test_review_alerts.py` that have been baseline-red since PR 0). Net delta from the fresh-venv PR 2 CP0 baseline: −32 tests total (all 32 were in `core/tests/test_oauth.py` — 28 passing tests that tested the deleted shim, 4 failing tests that imported `mcp_server.http_app`)
+- `grep -rn "mcp_server" --include="*.py" --include="*.ini" --include="*.txt" --include="*.toml" --include="*.sh"` excluding `.venv/` — **zero hits**
+
+### Notes
+
+- Docs (`README.md`, `ROADMAP.md`, `ARCHITECTURE.md`, `CHANGELOG.md`'s "Inherited from NockCC" section) all still reference MCP. PR 6 (Docs + deployment) owns that rewrite; this chore PR is code + config only.
+- `railway.toml` has a historical comment block mentioning MCP in the context of a past Railpack bug. Comment, not active code. Left untouched for PR 6.
+- The `.venv` recreation is a local-machine-only operation (`.venv` is gitignored). PR 6 will add the recreation procedure to the `README.md` so future fork operators don't hit the same trap.
+
+---
+
 ## [Unreleased] — 2026-04-11
 
 ### Changed
