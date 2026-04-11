@@ -399,8 +399,61 @@ Python: 3.12.12, Django 5.0.4, venv at `.venv/`, local dev DB: `nock_dashboard_d
 ### Baseline gotchas (carried forward from PR 1, not fixed in PR 2)
 
 1. `brain/tests` still not in `pytest.ini` `testpaths`. Still a latent coverage gap. Scope for a dedicated cleanup PR (not PR 2)
-2. `mcp_server/tests` still listed in `testpaths` but directory doesn't exist. No-op, scope for a later PR when MCP server is backported
+2. ~~`mcp_server/tests` still listed in `testpaths` but directory doesn't exist.~~ **RESOLVED by `chore/strip-mcp-refs` (nocktechnologies/nock-dashboard#4, merged as `1e78ae5`).** See §5b below for the post-strip baseline refresh.
 3. `accounts/tests` ALSO not currently in `testpaths`. **PR 2 WILL add `accounts/tests` to `testpaths`** at CP6 because the tests are net-new and there's no inherited-drift concern. This is the only `testpaths` change that's scope-appropriate in PR 2
+
+## 5b. Baseline refresh — 2026-04-11 (checkpoint 0b, post chore/strip-mcp-refs merge)
+
+Branch: `feature/django-allauth` rebased onto `main@1e78ae5` (the merge commit for `chore: strip MCP / OAuth-shim references from fork` — PR #4).
+
+### Why CP0b exists
+
+CP0 was captured against `main@3a15f68` with a **broken local venv** (`pyvenv.cfg` copied from nock-command-center, `sys.path` fall-through resolving `mcp_server` to nock-cc's project tree). That venv was masking two latent bugs:
+
+1. **Broken ASGI entry point** — `config/asgi.py` did a top-level `from mcp_server.http_app import build_http_app`, which raised `ModuleNotFoundError` on a clean venv. Production uvicorn would have failed to boot. `manage.py runserver` (via Daphne's channels override) would have failed to boot.
+2. **32 dead tests** — `core/tests/test_oauth.py` had 28 passing tests + 4 failing tests, all testing the OAuth 2.1 shim at `core/oauth/` that existed solely to gate the absent MCP server.
+
+Rebuilding the venv from scratch at CP0 exposed both issues. Rather than bloat PR 2's diff with an unrelated 1605-line deletion, a separate chore PR (`chore/strip-mcp-refs` → #4) landed the MCP + OAuth shim cleanup. CP0b refreshes the baseline numbers on top of that merged chore. Per Kevin's instruction: clean append, CP0 is NOT rewritten.
+
+### Post-strip baseline (captured 2026-04-11)
+
+Branch: `feature/django-allauth` at HEAD, rebased onto `main@1e78ae5`
+Python: 3.12.12, Django 5.0.4, venv at `.venv/` (freshly created via `python3.12 -m venv .venv && pip install -r requirements.txt` during the CP0 venv rebuild)
+Local dev DB: `nock_dashboard_dev` (postgres, fresh)
+
+**`python -c "import config.asgi"`:** **loads successfully** (was ModuleNotFoundError on fresh venv before PR #4 landed)
+
+**`python manage.py check`:** clean (0 issues)
+
+**`python manage.py makemigrations --check --dry-run`:** No changes detected
+
+**Main test suite** (`pytest` with `pytest.ini` default `testpaths` — now without `mcp_server/tests`): **728 passed, 2 failed in 188s**
+- `pipeline/tests/test_review_alerts.py::TelegramNotifierTests::test_not_quiet_hours`
+- `pipeline/tests/test_review_alerts.py::TelegramNotifierTests::test_quiet_hours_midnight_crossing`
+- Both are pre-existing timezone-dependent failures. Root cause: the tests `mock.patch` a `core.telegram.dj_timezone` attribute that doesn't exist on the module. Unchanged from PR 0/PR 1 baselines; continues as baseline-red for PR 2.
+
+**Brain test suite** (explicit `pytest brain/tests`): **165 passed, 0 failed in 52s** — unchanged from CP0 (PR #4 didn't touch brain).
+
+**Accounts test suite** (explicit `pytest accounts/tests`): **0 collected** — still the stub app with no tests. PR 2 adds 22 tests at CP6.
+
+### Delta vs. CP0 (stale broken-venv baseline)
+
+| Metric | CP0 (broken venv) | CP0b (post-strip, fresh venv) | Delta |
+|---|---|---|---|
+| Main pytest passed | 760 | 728 | −32 |
+| Main pytest failed | 2 | 2 | 0 |
+| Brain pytest passed | 165 | 165 | 0 |
+| `config.asgi` imports | ✗ (hidden by fall-through) | ✓ | fixed |
+| `runserver` boots | ✗ (hidden by fall-through) | ✓ | fixed |
+
+The −32 in main pytest is entirely the deleted `core/tests/test_oauth.py` (28 passing + 4 failing). Not a regression — all 32 were testing dead code for a non-existent MCP server.
+
+### Updated expected post-PR-2 counts (supersedes §5a's final grand-total line)
+
+- Main: **728 passed / 2 failed** (unchanged — PR 2 doesn't add to the main suite)
+- Brain: **165 passed** (unchanged)
+- Accounts: **22 passed** (new at CP6)
+- **Grand total: 915 passed / 2 failed**
 
 ## 6. Out of scope for PR 2
 
