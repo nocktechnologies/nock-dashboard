@@ -1,0 +1,104 @@
+%% NockCC — Data Flow Diagram
+%% How data moves through the system: webhooks, APIs, Celery tasks, WebSocket
+%% Generated 2026-04-07
+
+graph TB
+    subgraph "External Services"
+        GH[GitHub]
+        ANTH[Anthropic API]
+        ASANA[Asana API]
+        SLACK[Slack]
+        TELE[Telegram]
+        CLAUDE_API[Claude API]
+    end
+
+    subgraph "Inbound Data"
+        GH -->|"push, pull_request,<br/>pull_request_review,<br/>check_run webhooks"| WEBHOOK["/webhooks/github/<br/>HMAC-verified"]
+        WEBHOOK -->|"Celery .delay()"| PIPE_TASKS
+
+        subgraph "Pipeline Tasks"
+            PIPE_TASKS[process_pull_request_event<br/>process_pull_request_review<br/>process_check_run<br/>process_push]
+        end
+
+        PIPE_TASKS -->|"create/update"| PR_MODELS[(PullRequest<br/>PREvent<br/>Branch<br/>BranchEvent<br/>ReviewAlert)]
+        PIPE_TASKS -->|"direct calls +<br/>on_commit (review path)"| TEAM_SIGNALS
+
+        subgraph "Team Signal Handlers"
+            TEAM_SIGNALS[on_pr_opened<br/>on_pr_merged<br/>on_review_alert<br/>on_prompt_pr_review<br/>on_prompt_pr_merged]
+        end
+
+        TEAM_SIGNALS -->|"update"| TEAM_MODELS[(TeamTask<br/>TeamEvent<br/>PromptFile<br/>PromptExecution)]
+    end
+
+    subgraph "Scheduled Polling (Celery Beat)"
+        BEAT[Celery Beat<br/>DatabaseScheduler]
+
+        BEAT -->|"every 15m"| SYNC_USAGE[sync_anthropic_usage]
+        BEAT -->|"daily 3 AM"| BACKFILL[daily_usage_backfill]
+        BEAT -->|"every 5m"| SYNC_ASANA[sync_asana_projects]
+        BEAT -->|"every 30m"| SYNC_CONTEXT[sync_context_docs_task]
+        BEAT -->|"every 1h"| CHECK_BUDGET[check_budget_alerts]
+        BEAT -->|"every 30m"| CLEANUP[cleanup_stale_sessions]
+        BEAT -->|"daily 6:30 AM"| GEN_SNAPSHOT[generate_business_snapshot]
+        BEAT -->|"every 6h"| PRED_ALERTS[check_predictive_alerts]
+        BEAT -->|"Monday 7 AM"| WEEKLY_MEMO[generate_weekly_memo]
+        BEAT -->|"daily 6 AM"| DAILY_MAINT[daily_maintenance]
+        BEAT -->|"daily 9 AM"| DAILY_DIGEST[send_daily_digest]
+        BEAT -->|"every 15m"| SW_TICK[smart_watch_tick]
+
+        SYNC_USAGE -->|"fetch"| ANTH
+        SYNC_USAGE -->|"upsert"| USAGE[(UsagePeriod)]
+
+        SYNC_ASANA -->|"fetch"| ASANA
+        SYNC_ASANA -->|"upsert"| ASANA_MODELS[(AsanaProject<br/>AsanaTask)]
+
+        SYNC_CONTEXT -->|"fetch"| GH
+        SYNC_CONTEXT -->|"upsert"| CTX_MODELS[(ContextDocument<br/>ContextSnapshot)]
+
+        WEEKLY_MEMO -->|"AI generation"| CLAUDE_API
+        WEEKLY_MEMO -->|"create"| MEMO[(WeeklyMemo<br/>Document)]
+        WEEKLY_MEMO -->|"post"| SLACK
+
+        DAILY_MAINT -->|"consolidate"| BRAIN[(MemoryEntry<br/>ConsolidationLog)]
+        DAILY_MAINT -->|"morning note"| TELE
+
+        DAILY_DIGEST -->|"AI digest"| CLAUDE_API
+        DAILY_DIGEST -->|"post"| SLACK
+
+        PRED_ALERTS -->|"create"| ALERTS[(PredictiveAlert)]
+        SW_TICK -->|"evaluate rules,<br/>create events"| SW[(SmartWatchRule<br/>SmartWatchEvent)]
+        SW_TICK -->|"notify"| TELE
+    end
+
+    subgraph "Outbound Notifications"
+        PIPE_TASKS -->|"trigger_event()"| NOTIFIER[Notification Engine]
+        CHECK_BUDGET -->|"trigger_event()"| NOTIFIER
+        SYNC_ASANA -->|"new comments"| NOTIFIER
+        PRED_ALERTS -->|"critical alerts"| NOTIFIER
+
+        NOTIFIER -->|"webhook POST"| SLACK
+        PIPE_TASKS -->|"direct send"| TELE
+        TEAM_SIGNALS -->|"direct send"| TELE
+    end
+
+    subgraph "Real-Time (WebSocket)"
+        AGENT_DAEMON[Mac Agent Daemon<br/>WebSocket Client] <-->|"wss://<br/>token auth"| WS_CONSUMER[AgentConsumer<br/>Django Channels]
+
+        WS_CONSUMER -->|"heartbeat,<br/>identify"| AGENT_STATUS[(AgentStatus)]
+        WS_CONSUMER -->|"output lines"| OUTPUT_BUF[(SessionOutputBuffer)]
+        WS_CONSUMER -->|"command results"| CMD_REQ[(CommandRequest)]
+
+        REST_CMD["/api/remote/commands/<br/>REST API"] -->|"channel_layer.send()"| WS_CONSUMER
+        WS_CONSUMER -->|"forward command"| AGENT_DAEMON
+    end
+
+    subgraph "Terminal Bridge"
+        TERMINAL[Nock Terminal<br/>Electron App] -->|"POST /api/terminal/heartbeat/"| HB[(TerminalHeartbeat)]
+        TERMINAL -->|"POST /api/terminal/reports/"| RPT[(SessionReport)]
+    end
+
+    subgraph "Frontend (Browser)"
+        BROWSER[Alpine.js Dashboard] -->|"polling /api/*"| REST_APIS[REST API Endpoints]
+        REST_APIS -->|"JSON responses"| BROWSER
+        BROWSER -->|"SSE /api/remote/stream/"| SSE[Server-Sent Events]
+    end

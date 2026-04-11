@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}AI Advisor — NockCC{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+    #chat-messages .msg-content h1 { font-size: 1.25rem; font-weight: 700; margin: 0.5rem 0; }
+    #chat-messages .msg-content h2 { font-size: 1.1rem; font-weight: 600; margin: 0.5rem 0; }
+    #chat-messages .msg-content h3 { font-size: 1rem; font-weight: 600; margin: 0.4rem 0; }
+    #chat-messages .msg-content p { margin: 0.3rem 0; }
+    #chat-messages .msg-content ul, #chat-messages .msg-content ol { padding-left: 1.25rem; margin: 0.3rem 0; }
+    #chat-messages .msg-content li { margin: 0.15rem 0; }
+    #chat-messages .msg-content code { background: rgba(0,0,0,0.3); padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
+    #chat-messages .msg-content pre { background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 6px; overflow-x: auto; margin: 0.5rem 0; }
+    #chat-messages .msg-content pre code { background: none; padding: 0; }
+    #chat-messages .msg-content strong { color: #e2e8f0; }
+    #chat-messages .msg-content table { border-collapse: collapse; width: 100%; margin: 0.5rem 0; }
+    #chat-messages .msg-content th, #chat-messages .msg-content td { border: 1px solid #374151; padding: 0.3rem 0.5rem; text-align: left; }
+    #chat-messages .msg-content th { background: rgba(0,0,0,0.2); font-weight: 600; }
+
+    /* Thinking dots animation */
+    @keyframes advisor-bounce {
+        0%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-4px); }
+    }
+    .advisor-dot { animation: advisor-bounce 1.2s ease-in-out infinite; }
+    .advisor-dot:nth-child(2) { animation-delay: 0.15s; }
+    .advisor-dot:nth-child(3) { animation-delay: 0.3s; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="advisorChat()" x-init="init()" style="display: flex; flex-direction: column; height: calc(100vh - 120px);">
+    <!-- Top bar -->
+    <div class="ncc-page-header" style="margin-bottom: var(--space-3);">
+        <div style="display: flex; align-items: center; gap: var(--space-3);">
+            <h1 class="ncc-page-title" style="font-size: var(--text-lg);">AI Advisor</h1>
+            <select x-model="selectedConversation" @change="loadConversation()"
+                    class="ncc-select" style="width: auto; font-size: var(--text-xs);">
+                <option value="">New Conversation</option>
+                <template x-for="c in conversations" :key="c.id">
+                    <option :value="c.id" x-text="c.title"></option>
+                </template>
+            </select>
+        </div>
+        <button @click="newConversation()" class="ncc-btn ncc-btn-ghost ncc-btn-sm">
+            + New
+        </button>
+    </div>
+
+    <!-- Message area -->
+    <div id="chat-messages" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-3); padding-bottom: var(--space-4); padding-right: var(--space-1);" x-ref="messageArea">
+        <!-- Welcome message when empty -->
+        <template x-if="messages.length === 0">
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%;">
+                <div style="text-align: center; max-width: 28rem;">
+                    <div style="font-size: var(--text-2xl); margin-bottom: var(--space-3); opacity: 0.3;">&#x1F4CA;</div>
+                    <h2 class="text-lg font-semibold text-secondary" style="margin-bottom: var(--space-2);">Business Intelligence</h2>
+                    <p class="text-sm text-muted" style="margin-bottom: var(--space-4);">Ask questions about your business data — finances, deals, development velocity, and more.</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2);">
+                        <button @click="sendQuickQuestion('What is my biggest expense category this month?')"
+                                class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="text-align: left; justify-content: flex-start; height: auto; padding: var(--space-2) var(--space-3);">
+                            What's my biggest expense?
+                        </button>
+                        <button @click="sendQuickQuestion('Any deals I should follow up on?')"
+                                class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="text-align: left; justify-content: flex-start; height: auto; padding: var(--space-2) var(--space-3);">
+                            Deals needing follow-up?
+                        </button>
+                        <button @click="sendQuickQuestion('How is development velocity this week?')"
+                                class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="text-align: left; justify-content: flex-start; height: auto; padding: var(--space-2) var(--space-3);">
+                            Dev velocity this week?
+                        </button>
+                        <button @click="sendQuickQuestion('Give me a financial health summary')"
+                                class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="text-align: left; justify-content: flex-start; height: auto; padding: var(--space-2) var(--space-3);">
+                            Financial health summary
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+
+        <!-- Messages -->
+        <template x-for="(msg, i) in messages" :key="i">
+            <div :style="msg.role === 'user' ? 'display: flex; justify-content: flex-end;' : 'display: flex; justify-content: flex-start;'">
+                <div :style="msg.role === 'user'
+                        ? 'background: rgba(59,111,212,0.08); border-radius: var(--radius-lg); border-bottom-right-radius: var(--radius-sm); padding: var(--space-2) var(--space-4); max-width: 85%;'
+                        : 'background: var(--bg-surface); border-left: 2px solid var(--color-accent); border-radius: var(--radius-lg); border-bottom-left-radius: var(--radius-sm); padding: var(--space-2) var(--space-4); max-width: 85%;'">
+                    <div class="msg-content text-sm" x-html="msg.role === 'assistant' ? renderMd(msg.content) : msg.content"></div>
+                    <template x-if="msg.cost && msg.cost !== '0.000000' && msg.cost !== '0'">
+                        <p class="text-muted" style="font-size: 10px; margin-top: var(--space-1);" x-text="msg.tokens_used + ' tokens · $' + msg.cost"></p>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        <!-- Thinking indicator -->
+        <template x-if="loading">
+            <div style="display: flex; justify-content: flex-start;">
+                <div style="background: var(--bg-surface); border-left: 2px solid var(--color-accent); border-radius: var(--radius-lg); border-bottom-left-radius: var(--radius-sm); padding: var(--space-3) var(--space-4);">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <span class="advisor-dot" style="width: 6px; height: 6px; background: var(--text-muted); border-radius: var(--radius-full); display: inline-block;"></span>
+                        <span class="advisor-dot" style="width: 6px; height: 6px; background: var(--text-muted); border-radius: var(--radius-full); display: inline-block;"></span>
+                        <span class="advisor-dot" style="width: 6px; height: 6px; background: var(--text-muted); border-radius: var(--radius-full); display: inline-block;"></span>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Input bar -->
+    <div style="border-top: 1px solid var(--bg-border); padding-top: var(--space-3);">
+        <form @submit.prevent="sendMessage()" style="display: flex; gap: var(--space-2);">
+            <input x-model="inputMessage"
+                   x-ref="chatInput"
+                   type="text"
+                   placeholder="Ask about your business..."
+                   :disabled="loading"
+                   class="ncc-input"
+                   style="flex: 1; border-radius: var(--radius-lg);"
+                   autocomplete="off" />
+            <button type="submit" :disabled="loading || !inputMessage.trim()"
+                    class="ncc-btn ncc-btn-primary"
+                    style="border-radius: var(--radius-lg);"
+                    :style="(loading || !inputMessage.trim()) && 'opacity: 0.5; pointer-events: none;'">
+                Send
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function advisorChat() {
+    return {
+        messages: [],
+        conversations: [],
+        selectedConversation: '',
+        inputMessage: '',
+        loading: false,
+        conversationId: null,
+
+        init() {
+            this.loadConversations();
+            if (typeof marked !== 'undefined') {
+                marked.setOptions({ breaks: true, gfm: true });
+            }
+        },
+
+        renderMd(text) {
+            if (typeof marked !== 'undefined') {
+                return marked.parse(text || '');
+            }
+            return (text || '').replace(/\n/g, '<br>');
+        },
+
+        async loadConversations() {
+            try {
+                const resp = await fetch('/intelligence/api/advisor/conversations/');
+                const json = await resp.json();
+                if (json.success) this.conversations = json.data;
+            } catch (e) {}
+        },
+
+        async loadConversation() {
+            if (!this.selectedConversation) {
+                this.newConversation();
+                return;
+            }
+            this.conversationId = parseInt(this.selectedConversation);
+            try {
+                const resp = await fetch(`/intelligence/api/advisor/conversations/${this.conversationId}/`);
+                const json = await resp.json();
+                if (json.success) {
+                    this.messages = json.data.messages;
+                    this.$nextTick(() => this.scrollToBottom());
+                }
+            } catch (e) {}
+        },
+
+        newConversation() {
+            this.messages = [];
+            this.conversationId = null;
+            this.selectedConversation = '';
+            this.$nextTick(() => this.$refs.chatInput?.focus());
+        },
+
+        sendQuickQuestion(q) {
+            this.inputMessage = q;
+            this.sendMessage();
+        },
+
+        async sendMessage() {
+            const msg = this.inputMessage.trim();
+            if (!msg || this.loading) return;
+
+            this.messages.push({ role: 'user', content: msg });
+            this.inputMessage = '';
+            this.loading = true;
+            this.$nextTick(() => this.scrollToBottom());
+
+            try {
+                const resp = await fetch('/intelligence/api/advisor/chat/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': this.getCookie('csrftoken'),
+                    },
+                    body: JSON.stringify({
+                        message: msg,
+                        conversation_id: this.conversationId,
+                    }),
+                });
+                const json = await resp.json();
+                if (json.success) {
+                    this.conversationId = json.data.conversation_id;
+                    this.messages.push({
+                        role: 'assistant',
+                        content: json.data.response,
+                        tokens_used: json.data.tokens_used,
+                        cost: json.data.cost,
+                    });
+                    // Update conversation list
+                    this.loadConversations();
+                    this.selectedConversation = String(this.conversationId);
+                } else {
+                    this.messages.push({
+                        role: 'assistant',
+                        content: 'Error: ' + (json.message || 'Unknown error'),
+                    });
+                }
+            } catch (e) {
+                this.messages.push({
+                    role: 'assistant',
+                    content: 'Network error — please try again.',
+                });
+            }
+            this.loading = false;
+            this.$nextTick(() => this.scrollToBottom());
+        },
+
+        scrollToBottom() {
+            const el = this.$refs.messageArea;
+            if (el) el.scrollTop = el.scrollHeight;
+        },
+
+        getCookie(name) {
+            const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+            return v ? v.pop() : '';
+        },
+    };
+}
+</script>
+{% endblock %}

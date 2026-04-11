@@ -1,0 +1,129 @@
+%% NockCC — URL → View → Model API Map
+%% Generated 2026-04-07
+
+graph LR
+    subgraph "Dashboard (root)"
+        D_INDEX["/"] --> dashboard.views.index
+        D_HEALTH["/healthz/"] --> dashboard.views.healthz
+        D_PIPE_API["/api/pipeline/status/"] --> dashboard.views.pipeline_status_api
+        D_SESS_API["/api/dashboard/sessions/"] --> dashboard.views.active_sessions_api
+        D_SUM_API["/api/dashboard/summary/"] --> dashboard.views.dashboard_summary_api
+        D_EXEC_API["/api/dashboard/executive/"] --> dashboard.views.executive_dashboard_api
+    end
+
+    subgraph "Pipeline"
+        P_WEBHOOK["/webhooks/github/"] --> pipeline.views.GitHubWebhookView
+        P_LIST["/pipeline/"] --> pipeline.views.pipeline_list
+        P_DETAIL["/pipeline/:owner/:repo/:pr/"] --> pipeline.views.pr_detail
+        P_PRS["/api/pipeline/prs/"] --> pipeline.views.pipeline_prs_api
+        P_EVT["/api/pipeline/events/"] --> pipeline.views.log_event
+        P_EVTL["/api/pipeline/events/list/"] --> pipeline.views.list_events
+        P_EVTS["/api/pipeline/events/summary/"] --> pipeline.views.event_summary
+        P_REVS["/api/alerts/reviews/"] --> pipeline.views.review_alerts_list
+        P_REVR["/api/alerts/reviews/read/"] --> pipeline.views.review_alerts_read
+    end
+
+    subgraph "Sessions"
+        S_LIST["/sessions/"] --> sessions.views.session_list_page
+        S_API["/api/sessions/"] --> sessions.views.session_list_create
+        S_ACTIVE["/api/sessions/active/"] --> sessions.views.session_active
+        S_END["/api/sessions/:id/end/"] --> sessions.views.session_end
+        S_LOG["/api/sessions/:id/log/"] --> sessions.views.session_log
+        S_DETAIL["/api/sessions/:id/"] --> sessions.views.session_detail
+        S_CLEANUP["/api/sessions/cleanup/"] --> sessions.views.cleanup_stale_sessions_view
+        S_HB["/api/terminal/heartbeat/"] --> sessions.views.terminal_heartbeat
+        S_STAT["/api/terminal/status/"] --> sessions.views.terminal_status
+    end
+
+    subgraph "Remote"
+        R_PAGE["/remote/"] --> remote.views.control_page
+        R_SESS["/remote/session/:id/"] --> remote.views.session_detail_page
+        R_NOTIF["/remote/notifications/"] --> remote.views.notifications_page
+        R_CHAT["/remote/chat/"] --> remote.views.chat_page
+        R_CMD["/api/remote/commands/"] --> remote.views.command_list_create
+        R_CMDD["/api/remote/commands/:id/"] --> remote.views.command_detail
+        R_CANCEL["/api/remote/commands/:id/cancel/"] --> remote.views.command_cancel
+        R_AGENT["/api/remote/agent/status/"] --> remote.views.agent_status
+        R_OUT["/api/remote/output/:id/"] --> remote.views.session_output
+        R_STREAM["/api/remote/stream/:id/"] --> remote.views.stream_output
+        R_KILL["/api/remote/kill-all/"] --> remote.views.kill_all
+        R_CONV["/api/remote/conversations/"] --> remote.views.conversation_list_create
+        R_CONVD["/api/remote/conversations/:id/"] --> remote.views.conversation_detail
+        R_SEND["/api/remote/conversations/:id/send/"] --> remote.views.conversation_send
+    end
+
+    subgraph "Spend"
+        SP_DASH["/spend/"] --> spend.views.spend_dashboard
+        SP_ADD["/spend/add/"] --> spend.views.add_expense
+        SP_TAX["/spend/tax/"] --> spend.views.tax_view
+        SP_PNL["/spend/pnl/"] --> spend.views.pnl_view
+        SP_REV["/spend/revenue/add/"] --> spend.views.add_revenue
+        SP_SUM["/spend/api/summary/"] --> spend.views.spend_summary_api
+        SP_DAY["/spend/api/daily/"] --> spend.views.spend_daily_api
+        SP_EXP["/spend/api/expenses/"] --> spend.views.expenses_api
+        SP_SUB["/spend/api/subscriptions/"] --> spend.views.subscriptions_api
+    end
+
+    subgraph "Intelligence"
+        I_EXEC["/intelligence/executive/"] --> intelligence.views.executive_dashboard
+        I_ADV["/intelligence/advisor/"] --> intelligence.views.advisor_page
+        I_ALERTS["/intelligence/alerts/"] --> intelligence.views.alerts_page
+        I_CHAT["/api/intelligence/advisor/chat/"] --> intelligence.views.advisor_chat_api
+        I_CONV["/api/intelligence/advisor/conversations/"] --> intelligence.views.conversations_list_api
+        I_SNAP["/api/intelligence/snapshot/latest/"] --> intelligence.views.snapshot_latest_api
+        I_MEMO["/api/intelligence/memo/generate/"] --> intelligence.views.memo_generate_api
+        I_SWS["/api/intelligence/smart-watch/status/"] --> intelligence.views.smart_watch_status
+        I_SWR["/api/intelligence/smart-watch/rules/"] --> intelligence.views.smart_watch_rules_list
+        I_SWE["/api/intelligence/smart-watch/events/"] --> intelligence.views.smart_watch_events_list
+    end
+
+    subgraph "Brain"
+        B_INDEX["/brain/"] --> brain.views.brain_index
+        B_ENTRIES["/api/brain/entries/"] --> brain.views.entries_list_create
+        B_DETAIL["/api/brain/entries/:id/"] --> brain.views.entry_detail
+        B_CATS["/api/brain/categories/"] --> brain.views.categories_list
+        B_BRIEF["/api/brain/brief/"] --> brain.views.generate_brief
+        B_STATS["/api/brain/stats/"] --> brain.views.stats
+        B_CONSOL["/api/brain/consolidate/"] --> brain.views.consolidate
+    end
+
+    subgraph "CRM"
+        C_PIPE["/crm/"] --> crm.views.pipeline_view
+        C_DEAL["/crm/deals/:pk/"] --> crm.views.deal_detail
+        C_DEALE["/crm/deals/:pk/edit/"] --> crm.views.deal_edit
+        C_CONT["/crm/contacts/"] --> crm.views.contact_list
+        C_API["/api/crm/deals/"] --> crm.views.deals_api
+    end
+
+    subgraph "Tasks & Teams"
+        T_FEED["/tasks/"] --> tasks.views.task_feed
+        T_HAND["/handoffs/"] --> tasks.views.handoffs
+        TM_PAGE["/teams/"] --> teams.views.teams_page
+        TM_PROM["/prompts/"] --> teams.views.prompts_page
+        TM_API["/api/teams/"] --> teams.views.teams_list_create
+        TM_PAPI["/api/prompts/"] --> teams.views.prompts_list_create
+        TM_EXEC["/api/prompts/:slug/execute/"] --> teams.views.prompt_execute
+    end
+
+    subgraph "Context & Vault"
+        CTX_LIST["/context/"] --> context.views.context_list
+        CTX_DET["/context/:id/"] --> context.views.context_detail
+        V_LIST["/vault/"] --> vault.views.document_list
+        V_UPLOAD["/vault/upload/"] --> vault.views.document_upload
+        V_DET["/vault/:pk/"] --> vault.views.document_detail
+        V_RPT["/api/terminal/reports/"] --> vault.views.session_reports_api
+    end
+
+    subgraph "Auth"
+        A_LOGIN["/accounts/login/"] --> accounts.views.login_view
+        A_LOGOUT["/accounts/logout/"] --> accounts.views.logout_view
+    end
+
+    %% Model connections
+    pipeline.views.GitHubWebhookView -.-> |"Repository, PullRequest, PREvent"| Models[(Models)]
+    sessions.views.session_list_create -.-> |"AgentSession, SessionLog"| Models
+    remote.views.command_list_create -.-> |"CommandRequest, AgentToken"| Models
+    spend.views.spend_dashboard -.-> |"UsagePeriod, SpendBudget, Expense"| Models
+    intelligence.views.advisor_chat_api -.-> |"AdvisorConversation, AdvisorMessage"| Models
+    brain.views.entries_list_create -.-> |"MemoryEntry"| Models
+    teams.views.teams_list_create -.-> |"AgentTeam, TeamMember, TeamTask"| Models

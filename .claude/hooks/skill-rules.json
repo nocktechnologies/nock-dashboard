@@ -1,0 +1,56 @@
+{
+  "skills": {
+    "session-close-protocol": {
+      "description": "Mandatory end-of-session doc sync, Asana updates, and living doc sync",
+      "priority": 10,
+      "triggers": {
+        "keywords": ["session close", "close protocol", "final commit", "end of session", "wrap up", "wrapping up"],
+        "intentPatterns": ["(?:finish|end|close|wrap).*(?:session|work|night)"]
+      }
+    },
+    "django-patterns": {
+      "description": "Django app conventions, model patterns, view patterns, test patterns for NockCC",
+      "priority": 8,
+      "triggers": {
+        "keywords": ["model", "view", "serializer", "migration", "celery", "task", "endpoint", "api"],
+        "keywordPatterns": ["\\bdjango\\b", "\\bcelery\\b", "\\bdaphne\\b"],
+        "directories": ["intelligence/", "brain/", "pipeline/", "sessions/", "chat/", "dashboard/", "notifications/"],
+        "pathPatterns": ["**/models.py", "**/views.py", "**/tasks.py", "**/tests.py"]
+      }
+    },
+    "brain-architecture": {
+      "description": "NockCC Brain app — memory entries, categories, consolidation, context briefs, morning note",
+      "priority": 9,
+      "triggers": {
+        "keywords": ["brain", "memory", "brief", "consolidation", "morning note", "continuity", "diary"],
+        "directories": ["brain/", "intelligence/"],
+        "intentPatterns": ["(?:brain|memory).*(?:entry|entries|category|brief)", "(?:morning|daily).*(?:note|brief|message)"]
+      }
+    },
+    "telegram-integration": {
+      "description": "Telegram notification patterns — TelegramNotifier, review alerts, push notifications",
+      "priority": 7,
+      "triggers": {
+        "keywords": ["telegram", "notification", "alert", "push"],
+        "directories": ["notifications/"],
+        "pathPatterns": ["**/notifications/**"]
+      }
+    },
+    "railway-deployment": {
+      "description": "Railway deployment patterns — services, env vars, Nixpacks, Procfile",
+      "priority": 7,
+      "triggers": {
+        "keywords": ["railway", "deploy", "production", "gunicorn", "daphne", "procfile", "nixpacks"],
+        "intentPatterns": ["(?:deploy|push|ship).*(?:railway|production|staging)"]
+      }
+    },
+    "review-priority-hierarchy": {
+      "description": "How to classify and respond to CodeRabbit, Copilot, and Gemini review comments",
+      "priority": 9,
+      "triggers": {
+        "keywords": ["review", "coderabbit", "copilot", "gemini", "pr comments", "findings"],
+        "intentPatterns": ["(?:fix|address|respond).*(?:review|comments|findings)", "(?:review|pr).*(?:cycle|loop|round)"]
+      }
+    }
+  }
+}

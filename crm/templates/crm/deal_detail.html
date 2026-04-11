@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}{{ deal.title }} — CRM — NockCC{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">{{ deal.title }}</h1>
+    <div class="flex items-center gap-3">
+      <a href="{% url 'crm:deal-edit' deal.pk %}" class="text-xs text-brand-500 hover:text-brand-500/80 transition">Edit</a>
+      <a href="{% url 'crm:pipeline' %}" class="text-xs text-gray-400 hover:text-white transition">Pipeline</a>
+    </div>
+  </div>
+
+  <!-- Deal Info -->
+  <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wider">Stage</p>
+        <p class="text-sm text-gray-200 mt-1">
+          <span class="px-2 py-0.5 rounded text-xs
+            {% if deal.stage == 'closed_won' %}bg-green-900/50 text-green-300
+            {% elif deal.stage == 'closed_lost' %}bg-red-900/50 text-red-300
+            {% elif deal.stage == 'active' %}bg-blue-900/50 text-blue-300
+            {% else %}bg-gray-700 text-gray-300{% endif %}">{{ deal.get_stage_display }}</span>
+        </p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wider">Source</p>
+        <p class="text-sm text-gray-200 mt-1">{{ deal.get_source_display }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wider">Contact</p>
+        <p class="text-sm text-gray-200 mt-1">{{ deal.contact.name|default:"No contact" }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wider">Value</p>
+        <p class="text-sm text-green-400 mt-1 font-medium">
+          {% if deal.display_value %}${{ deal.display_value|floatformat:2 }}{% else %}—{% endif %}
+        </p>
+      </div>
+      {% if deal.next_action %}
+      <div class="col-span-2">
+        <p class="text-xs text-gray-400 uppercase tracking-wider">Next Action</p>
+        <p class="text-sm text-gray-200 mt-1">{{ deal.next_action }}{% if deal.next_action_date %} — {{ deal.next_action_date }}{% endif %}</p>
+      </div>
+      {% endif %}
+      {% if deal.description %}
+      <div class="col-span-2">
+        <p class="text-xs text-gray-400 uppercase tracking-wider">Description</p>
+        <p class="text-sm text-gray-300 mt-1">{{ deal.description }}</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Stage update -->
+    {% if deal.is_open %}
+    <form method="post" class="mt-4 pt-4 border-t border-gray-700 flex items-center gap-3">
+      {% csrf_token %}
+      <label for="stage-select" class="text-xs text-gray-400">Move to:</label>
+      <select id="stage-select" name="stage" class="bg-gray-900 border border-gray-700 rounded-md px-2 py-1 text-xs text-gray-300">
+        {% for key, label in stage_choices %}
+        <option value="{{ key }}" {% if deal.stage == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" name="update_stage" value="1" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded-md transition">Update</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <!-- Notes -->
+  <div class="bg-gray-800 border border-gray-700 rounded-lg p-6">
+    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Notes</p>
+
+    <form method="post" class="mb-4">
+      {% csrf_token %}
+      {{ note_form.content }}
+      <button type="submit" name="add_note" value="1" class="mt-2 bg-brand-500 hover:bg-brand-500/80 text-white text-xs px-3 py-1.5 rounded-md transition">Add Note</button>
+    </form>
+
+    <div class="space-y-3">
+      {% for note in notes %}
+      <div class="border-l-2 border-gray-700 pl-3">
+        <p class="text-sm text-gray-300">{{ note.content }}</p>
+        <p class="text-xs text-gray-500 mt-1">{{ note.created_at|date:"M d, Y H:i" }}</p>
+      </div>
+      {% empty %}
+      <p class="text-xs text-gray-600">No notes yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}Executive Dashboard — NockCC{% endblock %}
+
+{% block content %}
+{{ exec_data|json_script:"executive-data" }}
+{% csrf_token %}
+<div x-data="executiveDashboard()" x-init="init()">
+    <!-- Header -->
+    <div class="ncc-page-header">
+        <div>
+            <h1 class="ncc-page-title">Executive Dashboard</h1>
+            <p class="text-xs text-muted" style="margin-top: var(--space-1);">Auto-refreshes every 60s &middot; <span x-text="lastUpdated"></span></p>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--space-2);">
+            <button @click="generateMemo()"
+                    :disabled="memoLoading"
+                    class="ncc-btn ncc-btn-primary ncc-btn-sm"
+                    style="opacity: 1;" :style="memoLoading && 'opacity: 0.5; pointer-events: none;'">
+                <span x-show="!memoLoading">Generate Memo</span>
+                <span x-show="memoLoading">Generating...</span>
+            </button>
+            <span class="ncc-dot ncc-dot-pulse" :class="connected ? 'ncc-dot-success' : 'ncc-dot-danger'"></span>
+        </div>
+    </div>
+
+    <!-- Memo feedback -->
+    <div x-show="memoMessage" x-transition style="margin-bottom: var(--space-4);">
+        <div class="ncc-alert"
+             :class="memoSuccess ? 'ncc-alert-success' : 'ncc-alert-error'">
+            <span x-text="memoMessage"></span>
+        </div>
+    </div>
+
+    <!-- Four Quadrant Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4);">
+
+        <!-- Q1: Financial Health -->
+        <div class="ncc-card ncc-stagger">
+            <div class="ncc-card-header">
+                <span class="ncc-card-label">Financial Health</span>
+                <span class="text-lg" x-text="trendIcon(data.financial.trend)"></span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+                <div>
+                    <div class="ncc-hero-label">Total Spend</div>
+                    <div class="ncc-hero-number" x-text="'$' + formatNum(data.financial.total_spend)"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Monthly Burn</div>
+                    <div class="ncc-hero-number" x-text="'$' + formatNum(data.financial.monthly_burn)"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Revenue MTD</div>
+                    <div class="ncc-hero-number text-success" x-text="'$' + formatNum(data.financial.revenue_mtd)"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Net Position</div>
+                    <div class="ncc-hero-number"
+                         :class="parseFloat(data.financial.net_position || 0) >= 0 ? 'text-success' : 'text-danger'"
+                         x-text="'$' + formatNum(data.financial.net_position)"></div>
+                </div>
+            </div>
+            <div x-show="data.financial.runway_months != null" style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--bg-border);">
+                <p class="text-xs text-warning">
+                    Runway: <span x-text="data.financial.runway_months"></span> months at current burn
+                </p>
+            </div>
+        </div>
+
+        <!-- Q2: Development Velocity -->
+        <div class="ncc-card ncc-stagger">
+            <div class="ncc-card-header">
+                <span class="ncc-card-label">Development Velocity</span>
+                <span class="text-lg" x-text="trendIcon(data.development.pr_trend)"></span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+                <div>
+                    <div class="ncc-hero-label">PRs Merged (Week)</div>
+                    <div class="ncc-hero-number" x-text="data.development.prs_merged_this_week || 0"></div>
+                    <div class="text-xs text-muted" style="font-size: 10px;" x-text="'vs ' + (data.development.prs_merged_last_week || 0) + ' last week'"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Active Sessions</div>
+                    <div class="ncc-hero-number ncc-gradient-text" x-text="data.development.active_sessions || 0"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Context Health</div>
+                    <div class="ncc-hero-number"
+                         :class="(data.development.context_docs_healthy || 0) === (data.development.context_docs_total || 0) ? 'text-success' : 'text-warning'"
+                         x-text="(data.development.context_docs_healthy || 0) + '/' + (data.development.context_docs_total || 0)"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Active Commands</div>
+                    <div class="ncc-hero-number" x-text="data.development.active_commands || 0"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Q3: Operations -->
+        <div class="ncc-card ncc-stagger">
+            <div class="ncc-card-header">
+                <span class="ncc-card-label">Operations</span>
+                <span class="ncc-dot ncc-dot-pulse"
+                      :class="data.operations.agent_online ? 'ncc-dot-success' : 'ncc-dot-muted'"
+                      :title="data.operations.agent_online ? 'Agent Online' : 'Agent Offline'"></span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+                <div>
+                    <div class="ncc-hero-label">Overdue Tasks</div>
+                    <div class="ncc-hero-number"
+                         :class="(data.operations.overdue_tasks || 0) > 0 ? 'text-danger' : 'text-success'"
+                         x-text="data.operations.overdue_tasks || 0"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Due This Week</div>
+                    <div class="ncc-hero-number text-warning" x-text="data.operations.due_this_week || 0"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Stale Docs</div>
+                    <div class="ncc-hero-number"
+                         :class="(data.operations.stale_docs || 0) > 0 ? 'text-warning' : 'text-success'"
+                         x-text="data.operations.stale_docs || 0"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Active Alerts</div>
+                    <div class="ncc-hero-number"
+                         :class="(data.operations.active_alerts || 0) > 0 ? 'text-danger' : 'text-muted'"
+                         x-text="data.operations.active_alerts || 0"></div>
+                </div>
+            </div>
+            <div style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--bg-border);">
+                <p class="text-muted" style="font-size: 10px;">
+                    Last digest: <span x-text="data.operations.last_digest ? new Date(data.operations.last_digest).toLocaleString() : 'Never'"></span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Q4: Growth -->
+        <div class="ncc-card ncc-stagger">
+            <div class="ncc-card-header">
+                <span class="ncc-card-label">Growth</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4);">
+                <div>
+                    <div class="ncc-hero-label">Pipeline Value</div>
+                    <div class="ncc-hero-number text-success" x-text="'$' + formatNum(data.growth.pipeline_value)"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Deals Needing Action</div>
+                    <div class="ncc-hero-number"
+                         :class="(data.growth.deals_needing_action || 0) > 0 ? 'text-warning' : 'text-success'"
+                         x-text="data.growth.deals_needing_action || 0"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Active Clients</div>
+                    <div class="ncc-hero-number ncc-gradient-text" x-text="data.growth.active_clients || 0"></div>
+                </div>
+                <div>
+                    <div class="ncc-hero-label">Vault Documents</div>
+                    <div class="ncc-hero-number" x-text="data.growth.vault_documents || 0"></div>
+                </div>
+            </div>
+            <!-- Deals by stage mini badges -->
+            <div style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--bg-border); display: flex; flex-wrap: wrap; gap: var(--space-2);">
+                <template x-for="s in (data.growth.deals_by_stage || [])" :key="s.stage">
+                    <span class="ncc-badge ncc-badge-draft">
+                        <span x-text="s.stage"></span>
+                        <span class="font-bold text-primary" x-text="s.count"></span>
+                    </span>
+                </template>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function executiveDashboard() {
+    return {
+        data: JSON.parse(document.getElementById('executive-data').textContent),
+        connected: true,
+        lastUpdated: '',
+        memoLoading: false,
+        memoMessage: '',
+        memoSuccess: false,
+        refreshInterval: null,
+
+        init() {
+            this.lastUpdated = new Date().toLocaleTimeString();
+            this.refreshInterval = setInterval(() => this.refresh(), 60000);
+        },
+
+        async refresh() {
+            try {
+                const resp = await fetch('/intelligence/api/executive/');
+                const json = await resp.json();
+                if (json.success) {
+                    this.data = json.data;
+                    this.connected = true;
+                    this.lastUpdated = new Date().toLocaleTimeString();
+                }
+            } catch (e) {
+                this.connected = false;
+            }
+        },
+
+        async generateMemo() {
+            this.memoLoading = true;
+            this.memoMessage = '';
+            try {
+                const resp = await fetch('/intelligence/api/memo/generate/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': this.getCookie('csrftoken'),
+                        'Content-Type': 'application/json',
+                    },
+                });
+                const json = await resp.json();
+                this.memoSuccess = json.success;
+                this.memoMessage = json.message;
+            } catch (e) {
+                this.memoSuccess = false;
+                this.memoMessage = 'Failed to generate memo';
+            }
+            this.memoLoading = false;
+            setTimeout(() => { this.memoMessage = ''; }, 5000);
+        },
+
+        getCookie(name) {
+            const v = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+            return v ? v.pop() : '';
+        },
+
+        formatNum(val) {
+            if (!val) return '0.00';
+            const n = parseFloat(val);
+            if (isNaN(n)) return '0.00';
+            return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        },
+
+        trendIcon(trend) {
+            if (trend === 'up') return '\u25B2';
+            if (trend === 'down') return '\u25BC';
+            return '\u2014';
+        },
+    };
+}
+</script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Add Revenue — NockCC{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">Add Revenue</h1>
+    <a href="{% url 'spend:pnl' %}" class="text-xs text-gray-400 hover:text-white transition">Back to P&L</a>
+  </div>
+
+  <form method="post" class="space-y-4">
+    {% csrf_token %}
+
+    {% if form.errors %}
+    <div class="bg-red-900/50 text-red-300 border border-red-800 rounded-md px-4 py-2 text-sm">
+      Please fix the errors below.
+    </div>
+    {% endif %}
+
+    <div>
+      <label for="id_source" class="block text-sm font-medium text-gray-300 mb-1">Source</label>
+      {{ form.source }}
+    </div>
+
+    <div>
+      <label for="id_description" class="block text-sm font-medium text-gray-300 mb-1">Description</label>
+      {{ form.description }}
+    </div>
+
+    <div>
+      <label for="id_amount" class="block text-sm font-medium text-gray-300 mb-1">Amount ($)</label>
+      {{ form.amount }}
+    </div>
+
+    <div>
+      <label for="id_client" class="block text-sm font-medium text-gray-300 mb-1">Client</label>
+      {{ form.client }}
+    </div>
+
+    <div>
+      <label for="id_date" class="block text-sm font-medium text-gray-300 mb-1">Date</label>
+      {{ form.date }}
+    </div>
+
+    <div>
+      <label for="id_reference" class="block text-sm font-medium text-gray-300 mb-1">Reference</label>
+      {{ form.reference }}
+    </div>
+
+    <div>
+      <label for="id_notes" class="block text-sm font-medium text-gray-300 mb-1">Notes</label>
+      {{ form.notes }}
+    </div>
+
+    <button type="submit"
+            class="w-full bg-green-600 hover:bg-green-600/80 text-white font-medium py-2.5 px-4 rounded-md text-sm transition">
+      Save Revenue
+    </button>
+  </form>
+</div>
+{% endblock %}

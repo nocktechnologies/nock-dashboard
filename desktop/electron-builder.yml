@@ -1,0 +1,20 @@
+appId: io.nocktechnologies.cc
+productName: NockCC
+copyright: "Copyright \u00A9 2026 K Wills Technologies LLC"
+
+mac:
+  category: public.app-category.developer-tools
+  icon: assets/icon.icns
+  target:
+    - target: dmg
+    - target: zip
+  darkModeSupport: true
+
+dmg:
+  title: NockCC
+  backgroundColor: "#000000"
+
+files:
+  - "**/*"
+  - "!scripts/"
+  - "!node_modules/.cache/"

@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Context Map — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  .context-filters .ncc-select { width: auto; min-width: 120px; }
+
+  @media (max-width: 767px) {
+    .context-filters {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: var(--space-1);
+    }
+    .context-filters::-webkit-scrollbar { display: none; }
+    .context-filters .ncc-select {
+      flex-shrink: 0;
+      min-height: 40px;
+    }
+    .context-desktop { display: none; }
+    .context-mobile  { display: block; }
+  }
+
+  @media (min-width: 768px) {
+    .context-mobile  { display: none; }
+    .context-desktop { display: block; }
+  }
+
+  /* File path link hover accent */
+  .context-file-link {
+    color: var(--text-secondary);
+    transition: color var(--transition-fast);
+  }
+  .context-file-link:hover {
+    color: var(--color-accent);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="ncc-page-header">
+  <div>
+    <h1 class="ncc-page-title">Context Map</h1>
+    <p class="text-muted text-sm" style="margin-top:var(--space-1);">
+      {% if stats.last_sync %}Last sync: {{ stats.last_sync|timesince }} ago{% else %}Never synced{% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- KPI stats -->
+<div class="ncc-kpi-row">
+  <div class="ncc-kpi-card ncc-stagger">
+    <div class="ncc-kpi-label">Total Docs</div>
+    <div class="ncc-kpi-value">{{ stats.total }}</div>
+  </div>
+  <div class="ncc-kpi-card ncc-stagger">
+    <div class="ncc-kpi-label">Healthy</div>
+    <div class="ncc-kpi-value text-success">{{ stats.healthy }}</div>
+  </div>
+  <div class="ncc-kpi-card ncc-stagger">
+    <div class="ncc-kpi-label">Stale</div>
+    <div class="ncc-kpi-value {% if stats.stale %}text-danger{% else %}text-success{% endif %}">{{ stats.stale }}</div>
+  </div>
+  <div class="ncc-kpi-card ncc-stagger">
+    <div class="ncc-kpi-label">Coverage</div>
+    <div class="ncc-kpi-value ncc-gradient-text">
+      {% if stats.total %}{{ stats.healthy|floatformat:0 }}/{{ stats.total }}{% else %}—{% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" class="ncc-filter-bar context-filters">
+  <label for="filter-repo" class="sr-only">Repository</label>
+  <select id="filter-repo" name="repo" class="ncc-select">
+    <option value="">All Repos</option>
+    {% for repo in repos %}
+    <option value="{{ repo.name }}" {% if filters.repo == repo.name %}selected{% endif %}>{{ repo }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="filter-type" class="sr-only">Document Type</label>
+  <select id="filter-type" name="type" class="ncc-select">
+    <option value="">All Types</option>
+    {% for value, label in doc_type_choices %}
+    <option value="{{ value }}" {% if filters.type == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+
+  <label for="filter-stale" class="sr-only">Staleness</label>
+  <select id="filter-stale" name="stale" class="ncc-select">
+    <option value="">All</option>
+    <option value="yes" {% if filters.stale == "yes" %}selected{% endif %}>Stale Only</option>
+  </select>
+
+  <button type="submit" class="ncc-btn ncc-btn-primary ncc-btn-sm">Filter</button>
+  {% if filters.repo or filters.type or filters.stale %}
+  <a href="{% url 'context:list' %}" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Clear</a>
+  {% endif %}
+</form>
+
+<!-- Mobile: Card view -->
+<div class="context-mobile">
+  {% if documents %}
+  <div style="display:flex; flex-direction:column; gap:var(--space-3);">
+    {% for doc in documents %}
+    <a href="{% url 'context:detail' doc.pk %}"
+       class="ncc-card ncc-stagger
+       {% if doc.days_since_modified is None %}{% elif doc.is_stale %}ncc-staleness-critical{% elif doc.days_since_modified >= 7 %}ncc-staleness-stale{% else %}ncc-staleness-fresh{% endif %}"
+       style="display:block; text-decoration:none; padding:var(--space-4);">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-2); margin-bottom:var(--space-2);">
+        <div style="min-width:0; flex:1;">
+          <span class="text-xs text-muted">{{ doc.repository.name }}</span>
+          <p class="font-mono text-sm text-primary" style="line-height:1.4; margin-top:var(--space-1); word-break:break-all;">{{ doc.file_path }}</p>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-2);">
+        <span class="ncc-badge ncc-badge-open">{{ doc.get_doc_type_display }}</span>
+        {% if doc.line_count %}
+        <span class="text-xs text-muted">{{ doc.line_count }} lines</span>
+        {% endif %}
+        {% if doc.days_since_modified is None %}
+        <span class="ncc-badge ncc-badge-draft">Not synced</span>
+        {% elif doc.is_stale %}
+        <span class="ncc-badge ncc-badge-closed">{{ doc.days_since_modified }}d stale</span>
+        {% elif doc.days_since_modified <= 3 %}
+        <span class="ncc-badge ncc-badge-approved">Fresh</span>
+        {% else %}
+        <span class="ncc-badge ncc-badge-review">{{ doc.days_since_modified }}d</span>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="padding:var(--space-12) 0; text-align:center;">
+    <p class="text-sm text-secondary">No documents tracked</p>
+    <p class="text-xs text-muted" style="margin-top:var(--space-2);">Run: python manage.py register_context_docs</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Desktop: Table view -->
+<div class="context-desktop">
+  {% if documents %}
+  <div class="ncc-card" style="padding:0; overflow:hidden;">
+    <table class="ncc-table">
+      <thead>
+        <tr>
+          <th>Repo</th>
+          <th>File Path</th>
+          <th>Type</th>
+          <th>Lines</th>
+          <th>Last Modified</th>
+          <th>Staleness</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in documents %}
+        <tr class="ncc-stagger {% if doc.days_since_modified is None %}{% elif doc.is_stale %}ncc-staleness-critical{% elif doc.days_since_modified >= 7 %}ncc-staleness-stale{% else %}ncc-staleness-fresh{% endif %}">
+          <td class="text-xs text-muted">{{ doc.repository.name }}</td>
+          <td>
+            <a href="{% url 'context:detail' doc.pk %}" class="font-mono text-xs context-file-link">{{ doc.file_path }}</a>
+          </td>
+          <td>
+            <span class="ncc-badge ncc-badge-open">{{ doc.get_doc_type_display }}</span>
+          </td>
+          <td class="text-xs text-muted">{{ doc.line_count|default:"—" }}</td>
+          <td class="text-xs text-muted">
+            {% if doc.last_modified %}{{ doc.last_modified|timesince }} ago{% else %}Never{% endif %}
+          </td>
+          <td>
+            {% if doc.days_since_modified is None %}
+            <span class="ncc-badge ncc-badge-draft">Not synced</span>
+            {% elif doc.is_stale %}
+            <span class="ncc-badge ncc-badge-closed">{{ doc.days_since_modified }}d stale</span>
+            {% elif doc.days_since_modified <= 3 %}
+            <span class="ncc-badge ncc-badge-approved">Fresh</span>
+            {% else %}
+            <span class="ncc-badge ncc-badge-review">{{ doc.days_since_modified }}d</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" style="padding:var(--space-8) var(--space-4); text-align:center; color:var(--text-muted);">
+            No documents tracked. Run: python manage.py register_context_docs
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:var(--space-12) 0; text-align:center;">
+    <p class="text-sm text-secondary">No documents tracked</p>
+    <p class="text-xs text-muted" style="margin-top:var(--space-2);">Run: python manage.py register_context_docs</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

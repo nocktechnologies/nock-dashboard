@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Handoffs — NockCC{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Handoffs</h1>
+    <p class="text-sm text-gray-500 mt-1">Session handoff notes from all active projects</p>
+  </div>
+  <a href="/tasks/" class="text-sm text-brand-500 hover:text-brand-400 transition">← All Tasks</a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  {% for item in handoff_tasks %}
+  <div class="bg-gray-800 border border-gray-700 rounded-lg p-5
+    {% if item.project.color == 'blue' %}border-l-4 border-l-blue-500
+    {% elif item.project.color == 'green' %}border-l-4 border-l-green-500
+    {% elif item.project.color == 'purple' %}border-l-4 border-l-purple-500
+    {% elif item.project.color == 'orange' %}border-l-4 border-l-orange-500
+    {% endif %}">
+    <div class="flex items-start justify-between mb-3">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-2 h-2 rounded-full
+            {% if item.project.color == 'blue' %}bg-blue-400
+            {% elif item.project.color == 'green' %}bg-green-400
+            {% elif item.project.color == 'purple' %}bg-purple-400
+            {% elif item.project.color == 'orange' %}bg-orange-400
+            {% else %}bg-gray-400{% endif %}"></span>
+          <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">{{ item.project.name|truncatechars:40 }}</span>
+        </div>
+        {% if item.task %}
+        <h3 class="text-sm font-semibold text-white">{{ item.task.name|truncatechars:80 }}</h3>
+        {% else %}
+        <h3 class="text-sm font-semibold text-gray-500">No handoff task found</h3>
+        {% endif %}
+      </div>
+      {% if item.task and item.task.permalink_url %}
+      <a href="{{ item.task.permalink_url }}" target="_blank" rel="noopener"
+         class="text-xs text-brand-500 hover:text-brand-400 transition flex-shrink-0 ml-3">Open in Asana &#8599;</a>
+      {% endif %}
+    </div>
+    {% if item.task and item.task.notes_preview %}
+    <div class="text-sm text-gray-400 whitespace-pre-wrap leading-relaxed bg-gray-900/50 rounded p-3 max-h-64 overflow-y-auto">{{ item.task.notes_preview }}</div>
+    {% elif item.task %}
+    <p class="text-xs text-gray-600">No notes captured (preview shows first 200 chars)</p>
+    {% else %}
+    <p class="text-xs text-gray-600">Run <code class="bg-gray-700 px-1 rounded">python manage.py sync_asana</code> to load tasks</p>
+    {% endif %}
+    {% if item.task %}
+    <div class="mt-3 pt-3 border-t border-gray-700 flex items-center justify-between text-xs text-gray-600">
+      <span>Synced {{ item.task.last_synced|timesince }} ago</span>
+      {% if item.task.assignee_name %}<span>{{ item.task.assignee_name }}</span>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

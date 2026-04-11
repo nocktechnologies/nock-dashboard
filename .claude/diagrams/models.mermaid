@@ -1,0 +1,338 @@
+%% NockCC — Django Model Relationships
+%% Generated 2026-04-07
+
+erDiagram
+
+    %% ─── PIPELINE ───
+    Repository {
+        BigInt github_id UK
+        string name
+        string owner
+        string default_branch
+        bool is_active
+    }
+    PullRequest {
+        BigInt github_pr_id
+        int number
+        string title
+        string branch
+        string author
+        string state
+        string coderabbit_status
+        string ci_status
+    }
+    PREvent {
+        string event_type
+        string actor
+        json payload
+        string delivery_id
+    }
+    Branch {
+        string name
+        string last_commit_sha
+    }
+    BranchEvent {
+        string delivery_id
+        string ref
+        bool deleted
+    }
+    ReviewAlert {
+        string repo
+        int pr_number
+        string reviewer
+        string status
+        bool is_read
+    }
+    PipelineEvent {
+        uuid id PK
+        string workflow_id
+        string category
+        string severity
+        string lane
+        string agent
+    }
+
+    Repository ||--o{ PullRequest : "pull_requests"
+    Repository ||--o{ Branch : "branches"
+    Repository ||--o{ BranchEvent : "branch_events"
+    PullRequest ||--o{ PREvent : "events"
+
+    %% ─── SESSIONS ───
+    AgentSession {
+        string agent
+        string machine
+        string status
+        BigInt tokens_input
+        BigInt tokens_output
+        decimal estimated_cost
+    }
+    SessionLog {
+        string level
+        text message
+    }
+    TerminalHeartbeat {
+        string machine UK
+        json sessions
+    }
+
+    Repository ||--o{ AgentSession : "sessions"
+    AgentSession ||--o{ SessionLog : "logs"
+    PullRequest ||--o| AgentSession : "generating_session"
+
+    %% ─── CONTEXT ───
+    ContextDocument {
+        string doc_type
+        string file_path
+        string title
+        bool is_stale
+    }
+    ContextSnapshot {
+        string content_hash
+        string commit_sha
+        int line_count
+    }
+
+    Repository ||--o{ ContextDocument : "context_docs"
+    ContextDocument ||--o{ ContextSnapshot : "snapshots"
+
+    %% ─── SPEND ───
+    UsagePeriod {
+        date date
+        string model
+        BigInt input_tokens
+        BigInt output_tokens
+        decimal cost_usd
+    }
+    SpendBudget {
+        date month UK
+        decimal budget_usd
+        int alert_threshold_pct
+        bool alert_sent
+    }
+    SubscriptionTracker {
+        string name
+        string provider
+        decimal monthly_cost
+        date renewal_date
+    }
+    Expense {
+        string vendor
+        string category
+        decimal total
+        date date
+    }
+    Revenue {
+        string source
+        decimal amount
+        date date
+    }
+
+    %% ─── BRAIN ───
+    MemoryEntry {
+        string key
+        text value
+        string category
+        string confidence
+    }
+    ConsolidationLog {
+        int entries_reviewed
+        int entries_promoted
+        int entries_archived
+    }
+    MorningNoteSent {
+        date date UK
+    }
+
+    %% ─── INTELLIGENCE ───
+    BusinessSnapshot {
+        date date UK
+        text content
+        int token_count
+    }
+    AdvisorConversation {
+        string title
+    }
+    AdvisorMessage {
+        string role
+        text content
+        decimal cost
+    }
+    PredictiveAlert {
+        string category
+        string severity
+        string title
+        bool is_resolved
+    }
+    WeeklyMemo {
+        date week_start
+        date week_end
+        text content
+        decimal cost
+    }
+    SmartWatchRule {
+        string name UK
+        string condition_type
+        int threshold_minutes
+        bool enabled
+    }
+    SmartWatchEvent {
+        text message
+        string severity
+        bool notified
+    }
+
+    AdvisorConversation ||--o{ AdvisorMessage : "messages"
+    SmartWatchRule ||--o{ SmartWatchEvent : "events"
+    WeeklyMemo }o--|| Document : "vault_document"
+
+    %% ─── NOTIFICATIONS ───
+    NotificationChannel {
+        string name
+        string channel_type
+        url webhook_url
+        bool is_active
+    }
+    NotificationRule {
+        string name
+        string trigger_event
+        bool is_active
+    }
+    NotificationLog {
+        string event_type
+        json payload
+        bool success
+    }
+
+    NotificationChannel ||--o{ NotificationRule : "rules"
+    NotificationChannel ||--o{ NotificationLog : "logs"
+    NotificationRule ||--o{ NotificationLog : "logs"
+
+    %% ─── REMOTE ───
+    AgentToken {
+        string name
+        string token_hash UK
+        bool is_active
+    }
+    AgentStatus {
+        bool is_online
+        string machine_name
+        int active_sessions
+    }
+    CommandRequest {
+        string command_type
+        string status
+        string hmac_signature
+    }
+    SessionOutputBuffer {
+        string session_id
+        int line_number
+        string stream
+    }
+    ConversationThread {
+        string repo
+        string title
+        bool is_active
+    }
+    CommandAuditLog {
+        string action
+        string source_ip
+    }
+    PushSubscription {
+        url endpoint
+        string p256dh
+        string auth
+    }
+
+    AgentToken ||--|| AgentStatus : "status"
+    ConversationThread ||--o{ CommandRequest : "commands"
+    CommandRequest ||--o{ CommandAuditLog : "audit_logs"
+
+    %% ─── CRM ───
+    Contact {
+        string name
+        string company
+        string email
+    }
+    Deal {
+        string title
+        string stage
+        string source
+        decimal estimated_value
+    }
+    DealNote {
+        text content
+    }
+
+    Contact ||--o{ Deal : "deals"
+    Deal ||--o{ DealNote : "deal_notes"
+
+    %% ─── TASKS ───
+    AsanaProject {
+        string asana_gid UK
+        string name
+        bool is_active
+    }
+    AsanaTask {
+        string asana_gid UK
+        string name
+        bool completed
+    }
+
+    AsanaProject ||--o{ AsanaTask : "tasks"
+    PullRequest ||--o{ AsanaTask : "linked_tasks"
+
+    %% ─── TEAMS ───
+    AgentTeam {
+        string name
+        string status
+        text mission
+    }
+    TeamMember {
+        string agent_name
+        string role
+        bool is_online
+    }
+    TeamTask {
+        string title
+        string status
+        int priority
+    }
+    TeamEvent {
+        string event_type
+        text description
+    }
+    PromptFile {
+        string title
+        slug slug UK
+        string status
+        string complexity
+        int priority
+    }
+    PromptExecution {
+        string agent_name
+        string result
+        int review_cycles
+    }
+
+    AgentTeam ||--o{ TeamMember : "members"
+    AgentTeam ||--o{ TeamTask : "tasks"
+    AgentTeam ||--o{ TeamEvent : "events"
+    TeamMember }o--o| AgentToken : "agent_token"
+    TeamMember }o--o| TeamTask : "current_task"
+    TeamTask }o--o| TeamMember : "assigned_to"
+    TeamTask }o--o{ TeamTask : "depends_on / blocks"
+    PromptFile ||--o{ PromptExecution : "executions"
+    PromptFile }o--o{ PromptFile : "depends_on_prompts"
+
+    %% ─── VAULT ───
+    Document {
+        string title
+        string category
+        string filename
+        int file_size
+    }
+    SessionReport {
+        string project_name
+        text content
+        string machine
+    }

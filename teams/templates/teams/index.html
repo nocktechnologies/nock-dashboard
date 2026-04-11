@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+
+{% block title %}Agent Teams — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  .kanban-col {
+    min-height: 200px;
+  }
+  .task-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--bg-border);
+    border-radius: 10px;
+    padding: 0.75rem;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .task-card:hover {
+    border-color: var(--bg-border-hover);
+    transform: translateY(-1px);
+  }
+  .priority-critical { border-left: 3px solid var(--color-danger); }
+  .priority-high { border-left: 3px solid var(--color-warning); }
+  .priority-medium { border-left: 3px solid var(--color-accent); }
+  .priority-low { border-left: 3px solid var(--text-muted); }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .status-active { background: var(--color-success); box-shadow: 0 0 6px rgba(34,197,94,0.5); }
+  .status-idle { background: var(--color-warning); }
+  .status-offline { background: var(--text-muted); }
+
+  /* Kanban column header accent */
+  .kanban-header { border-top: 2px solid var(--text-muted); padding-top: 8px; }
+  .kanban-header[data-status="pending"] { border-color: var(--text-muted); }
+  .kanban-header[data-status="in_progress"] { border-color: var(--color-accent); }
+  .kanban-header[data-status="in_review"] { border-color: var(--color-info); }
+  .kanban-header[data-status="blocked"] { border-color: var(--color-danger); }
+  .kanban-header[data-status="completed"] { border-color: var(--color-success); }
+
+  /* Mobile teams polish */
+  @media (max-width: 767px) {
+    .agent-roster-scroll {
+      display: flex;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      gap: 10px;
+      padding-bottom: 8px;
+    }
+    .agent-roster-scroll::-webkit-scrollbar { display: none; }
+    .agent-roster-scroll > div {
+      flex-shrink: 0;
+      min-width: 140px;
+    }
+    .kanban-status-header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: var(--bg-base);
+      padding: 8px 0;
+      border-left: 3px solid;
+      padding-left: 10px;
+    }
+    .kanban-status-header[data-status="pending"] { border-color: var(--text-muted); }
+    .kanban-status-header[data-status="in_progress"] { border-color: var(--color-accent); }
+    .kanban-status-header[data-status="in_review"] { border-color: var(--color-info); }
+    .kanban-status-header[data-status="blocked"] { border-color: var(--color-danger); }
+    .kanban-status-header[data-status="completed"] { border-color: var(--color-success); }
+    .task-card {
+      padding: 14px;
+    }
+    .task-card p { font-size: 0.875rem; line-height: 1.3; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="teamsPage()" x-init="init()">
+
+  <!-- Header -->
+  <div class="ncc-page-header">
+    <div>
+      <h1 class="ncc-page-title">Agent Teams</h1>
+      <p class="text-[11px] text-[var(--text-secondary)] font-light mt-0.5">Multi-agent mission orchestration</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button @click="showNewTask = true; newTaskTeamId = selectedTeam?.id"
+              x-show="selectedTeam"
+              class="ncc-btn ncc-btn-primary ncc-btn-sm">
+        + New Task
+      </button>
+      <button @click="showNewTeam = true"
+              class="ncc-btn ncc-btn-ghost ncc-btn-sm">
+        + New Team
+      </button>
+    </div>
+  </div>
+
+  <!-- Team selector (if multiple) -->
+  <template x-if="teams.length > 1">
+    <div class="flex gap-2 mb-4 overflow-x-auto pb-2">
+      <template x-for="t in teams" :key="t.id">
+        <button @click="selectTeam(t.id)"
+                class="ncc-btn ncc-btn-sm"
+                :class="selectedTeam?.id === t.id ? 'ncc-btn-primary' : 'ncc-btn-ghost'">
+          <span x-text="t.name"></span>
+          <span class="ml-1 opacity-60" x-text="'(' + t.task_summary.completed + '/' + t.task_summary.total + ')'"></span>
+        </button>
+      </template>
+    </div>
+  </template>
+
+  <template x-if="teams.length === 0">
+    <div class="text-center py-16">
+      <p class="text-[16px] text-[var(--text-secondary)]">No active teams</p>
+      <p class="text-[13px] text-[var(--text-muted)] mt-2">Create a team to start coordinating agent missions</p>
+      <button @click="showNewTeam = true"
+              class="mt-4 ncc-btn ncc-btn-primary">
+        Create Team
+      </button>
+    </div>
+  </template>
+
+  <template x-if="selectedTeam">
+    <div>
+      <!-- Team header -->
+      <div class="ncc-card p-4 mb-4">
+        <div class="flex items-center justify-between">
+          <div class="min-w-0 flex-1">
+            <h2 class="text-[16px] font-semibold text-[var(--text-primary)]" x-text="selectedTeam.name"></h2>
+            <p class="text-[11px] text-[var(--text-secondary)] mt-0.5 truncate" x-text="selectedTeam.mission"></p>
+          </div>
+          <span class="text-[11px] px-2.5 py-1 rounded-full ml-3 font-medium"
+                :class="{
+                  'bg-blue-900/30 text-blue-400': selectedTeam.status === 'planning',
+                  'bg-green-900/30 text-green-400': selectedTeam.status === 'active',
+                  'bg-yellow-900/30 text-yellow-400': selectedTeam.status === 'paused',
+                  'bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]': selectedTeam.status === 'completed',
+                }"
+                x-text="selectedTeam.status"></span>
+        </div>
+      </div>
+
+      <!-- Mobile: horizontal agent roster -->
+      <div class="md:hidden ncc-card p-3 mb-3">
+        <h3 class="text-[10px] text-[var(--text-secondary)] uppercase tracking-[0.05em] mb-2 font-semibold">Agent Roster</h3>
+        <div class="agent-roster-scroll">
+          <template x-for="m in teamMembers" :key="m.id">
+            <div class="bg-[var(--bg-surface-hover)] rounded-lg p-3 border border-[var(--bg-border)]">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="status-dot" :class="m.is_online ? 'status-active' : 'status-offline'"></span>
+                <span class="text-[12px] font-medium text-[var(--text-primary)]" x-text="m.agent_name"></span>
+              </div>
+              <span class="text-[10px] px-1.5 py-0.5 rounded"
+                    :class="{
+                      'bg-purple-900/30 text-purple-400': m.role === 'lead',
+                      'bg-[var(--bg-surface)] text-[var(--text-secondary)]': m.role === 'worker',
+                      'bg-blue-900/30 text-blue-400': m.role === 'reviewer',
+                    }"
+                    x-text="m.role"></span>
+              <template x-if="m.current_task">
+                <p class="text-[10px] text-[var(--text-muted)] mt-1 truncate" x-text="m.current_task"></p>
+              </template>
+            </div>
+          </template>
+          <template x-if="teamMembers.length === 0">
+            <p class="text-[11px] text-[var(--text-muted)]">No members yet</p>
+          </template>
+        </div>
+      </div>
+
+      <!-- 3-column layout (stacked on mobile) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+        <!-- Left: Agent Roster (desktop only) -->
+        <div class="hidden md:block lg:col-span-3">
+          <div class="ncc-card p-4">
+            <h3 class="text-[10px] text-[var(--text-secondary)] uppercase tracking-[0.05em] mb-3 font-semibold">Agent Roster</h3>
+            <div class="space-y-2">
+              <template x-for="m in teamMembers" :key="m.id">
+                <div class="flex items-center gap-2 py-1">
+                  <span class="status-dot" :class="m.is_online ? 'status-active' : 'status-offline'"></span>
+                  <div class="min-w-0 flex-1">
+                    <span class="text-[12px] text-[var(--text-primary)]" x-text="m.agent_name"></span>
+                    <span class="text-[10px] ml-1 px-1.5 py-0.5 rounded"
+                          :class="{
+                            'bg-purple-900/30 text-purple-400': m.role === 'lead',
+                            'bg-[var(--bg-surface-hover)] text-[var(--text-secondary)]': m.role === 'worker',
+                            'bg-blue-900/30 text-blue-400': m.role === 'reviewer',
+                          }"
+                          x-text="m.role"></span>
+                  </div>
+                </div>
+                <template x-if="m.current_task">
+                  <p class="text-[10px] text-[var(--text-muted)] ml-4 truncate" x-text="'Working: ' + m.current_task"></p>
+                </template>
+              </template>
+              <template x-if="teamMembers.length === 0">
+                <p class="text-[11px] text-[var(--text-muted)]">No members yet</p>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center: Kanban Board -->
+        <div class="lg:col-span-6">
+          <!-- Desktop: horizontal columns -->
+          <div class="hidden md:grid grid-cols-5 gap-3">
+            <template x-for="col in kanbanCols" :key="col.key">
+              <div class="kanban-col">
+                <div class="kanban-header flex items-center justify-between mb-2" :data-status="col.key">
+                  <span class="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-semibold" x-text="col.label"></span>
+                  <span class="text-[10px] text-[var(--text-muted)] bg-[var(--bg-surface-hover)] px-1.5 py-0.5 rounded-full" x-text="tasksByStatus(col.key).length"></span>
+                </div>
+                <div class="space-y-2">
+                  <template x-for="task in tasksByStatus(col.key)" :key="task.id">
+                    <div class="task-card cursor-pointer"
+                         :class="'priority-' + task.priority"
+                         @click="selectedTask = task">
+                      <p class="text-[12px] text-[var(--text-primary)] leading-tight mb-1" x-text="task.title"></p>
+                      <div class="flex items-center justify-between">
+                        <span class="text-[10px] text-[var(--text-secondary)]" x-text="task.assigned_to || 'unassigned'"></span>
+                        <template x-if="task.pr_number">
+                          <span class="text-[10px] text-[var(--color-accent)] font-mono" x-text="'PR #' + task.pr_number"></span>
+                        </template>
+                      </div>
+                      <template x-if="task.is_blocked">
+                        <span class="text-[10px] text-[var(--color-danger)] mt-1 block font-medium">Blocked</span>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Mobile: vertical list grouped by status -->
+          <div class="md:hidden space-y-4">
+            <template x-for="col in kanbanCols" :key="col.key">
+              <div x-show="tasksByStatus(col.key).length > 0">
+                <div class="kanban-status-header flex items-center justify-between mb-2" :data-status="col.key">
+                  <span class="text-[11px] text-[var(--text-secondary)] uppercase tracking-wider font-semibold" x-text="col.label"></span>
+                  <span class="text-[10px] text-[var(--text-muted)] bg-[var(--bg-surface-hover)] px-2 py-0.5 rounded-full" x-text="tasksByStatus(col.key).length"></span>
+                </div>
+                <div class="space-y-2">
+                  <template x-for="task in tasksByStatus(col.key)" :key="task.id">
+                    <div class="task-card cursor-pointer"
+                         :class="'priority-' + task.priority"
+                         @click="selectedTask = task">
+                      <p class="text-[13px] text-[var(--text-primary)] leading-tight mb-1.5" x-text="task.title"></p>
+                      <div class="flex items-center justify-between">
+                        <span class="text-[11px] text-[var(--text-secondary)]" x-text="task.assigned_to || 'unassigned'"></span>
+                        <template x-if="task.pr_number">
+                          <span class="text-[11px] text-[var(--color-accent)] font-mono" x-text="'PR #' + task.pr_number"></span>
+                        </template>
+                      </div>
+                      <template x-if="task.is_blocked">
+                        <span class="text-[11px] text-[var(--color-danger)] mt-1 block font-medium">Blocked</span>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Right: Activity Feed -->
+        <div class="lg:col-span-3">
+          <div x-data="{ activityOpen: window.innerWidth >= 768 }" class="ncc-card p-4">
+            <div class="flex items-center justify-between mb-3 cursor-pointer md:cursor-default" @click="if(window.innerWidth < 768) activityOpen = !activityOpen">
+              <h3 class="text-[10px] text-[var(--text-secondary)] uppercase tracking-[0.05em] font-semibold">Activity</h3>
+              <svg class="w-4 h-4 text-[var(--text-muted)] md:hidden transition-transform" :class="activityOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </div>
+            <div x-show="activityOpen" x-transition class="space-y-2 max-h-96 overflow-y-auto">
+              <template x-for="e in teamEvents" :key="e.id">
+                <div class="flex items-start gap-2 py-1">
+                  <span class="text-[11px] mt-0.5" x-text="eventIcon(e.event_type)"></span>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-[12px] text-[var(--text-primary)] leading-tight" x-text="e.description"></p>
+                    <p class="text-[10px] text-[var(--text-muted)]" x-text="timeAgo(e.created_at)"></p>
+                  </div>
+                </div>
+              </template>
+              <template x-if="teamEvents.length === 0">
+                <p class="text-[11px] text-[var(--text-muted)] text-center py-4">No activity yet</p>
+              </template>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </template>
+
+  <!-- New Team Modal -->
+  <div x-show="showNewTeam" x-transition class="ncc-modal-overlay" @click.self="showNewTeam = false">
+    <div class="ncc-modal ncc-modal-md">
+      <h3 class="ncc-modal-title">Create Team</h3>
+      <input x-model="newTeamName" placeholder="Team name" class="ncc-input mb-3" />
+      <textarea x-model="newTeamMission" placeholder="Mission description" rows="3" class="ncc-input mb-4"></textarea>
+      <div class="flex justify-end gap-2">
+        <button @click="showNewTeam = false" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Cancel</button>
+        <button @click="createTeam()" class="ncc-btn ncc-btn-primary ncc-btn-sm">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Task Modal -->
+  <div x-show="showNewTask" x-transition class="ncc-modal-overlay" @click.self="showNewTask = false">
+    <div class="ncc-modal ncc-modal-md">
+      <h3 class="ncc-modal-title">New Task</h3>
+      <input x-model="newTaskTitle" placeholder="Task title" class="ncc-input mb-3" />
+      <textarea x-model="newTaskDesc" placeholder="Description (optional)" rows="2" class="ncc-input mb-3"></textarea>
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <select x-model="newTaskPriority" class="ncc-select">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="critical">Critical</option>
+        </select>
+        <select x-model="newTaskAssignee" class="ncc-select">
+          <option value="">Unassigned</option>
+          <template x-for="m in teamMembers" :key="m.id">
+            <option :value="m.id" x-text="m.agent_name"></option>
+          </template>
+        </select>
+      </div>
+      <input x-model="newTaskRepo" placeholder="Repo (e.g. kkwills13/nexus)" class="ncc-input mb-3" />
+      <input x-model="newTaskBranch" placeholder="Branch (optional)" class="ncc-input mb-4" />
+      <div class="flex justify-end gap-2">
+        <button @click="showNewTask = false" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Cancel</button>
+        <button @click="createTask()" class="ncc-btn ncc-btn-primary ncc-btn-sm">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Task Detail Modal -->
+  <div x-show="selectedTask" x-transition class="ncc-modal-overlay" @click.self="selectedTask = null">
+    <template x-if="selectedTask">
+      <div class="ncc-modal ncc-modal-md max-h-[80vh] overflow-y-auto">
+        <div class="flex items-start justify-between mb-4">
+          <h3 class="ncc-modal-title mb-0 pr-4" x-text="selectedTask.title"></h3>
+          <button @click="selectedTask = null" class="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-all duration-150">&times;</button>
+        </div>
+        <template x-if="selectedTask.description">
+          <p class="text-[12px] text-[var(--text-secondary)] mb-3" x-text="selectedTask.description"></p>
+        </template>
+        <div class="grid grid-cols-2 gap-2 text-[12px] mb-4">
+          <div><span class="text-[var(--text-secondary)]">Status:</span> <span class="text-[var(--text-primary)]" x-text="selectedTask.status"></span></div>
+          <div><span class="text-[var(--text-secondary)]">Priority:</span> <span class="text-[var(--text-primary)]" x-text="selectedTask.priority"></span></div>
+          <div><span class="text-[var(--text-secondary)]">Assigned:</span> <span class="text-[var(--text-primary)]" x-text="selectedTask.assigned_to || 'none'"></span></div>
+          <div><span class="text-[var(--text-secondary)]">Repo:</span> <span class="text-[var(--text-primary)]" x-text="selectedTask.repo || 'none'"></span></div>
+          <template x-if="selectedTask.pr_number">
+            <div class="col-span-2"><span class="text-[var(--text-secondary)]">PR:</span> <a :href="selectedTask.pr_url" target="_blank" class="text-[var(--color-accent)] hover:brightness-110" x-text="'#' + selectedTask.pr_number"></a></div>
+          </template>
+          <template x-if="selectedTask.started_at">
+            <div><span class="text-[var(--text-secondary)]">Started:</span> <span class="text-[var(--text-primary)]" x-text="new Date(selectedTask.started_at).toLocaleString()"></span></div>
+          </template>
+        </div>
+        <template x-if="selectedTask.depends_on && selectedTask.depends_on.length > 0">
+          <div class="mb-4">
+            <span class="text-[11px] text-[var(--text-secondary)]">Dependencies:</span>
+            <span class="text-[11px] text-[var(--text-primary)]" x-text="selectedTask.depends_on.length + ' tasks'"></span>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function teamsPage() {
+    return {
+        teams: [],
+        selectedTeam: null,
+        teamMembers: [],
+        teamTasks: [],
+        teamEvents: [],
+        selectedTask: null,
+        showNewTeam: false,
+        showNewTask: false,
+        newTeamName: '',
+        newTeamMission: '',
+        newTaskTitle: '',
+        newTaskDesc: '',
+        newTaskPriority: 'medium',
+        newTaskAssignee: '',
+        newTaskRepo: '',
+        newTaskBranch: '',
+        newTaskTeamId: null,
+        kanbanCols: [
+            { key: 'pending', label: 'Pending' },
+            { key: 'in_progress', label: 'In Progress' },
+            { key: 'in_review', label: 'In Review' },
+            { key: 'blocked', label: 'Blocked' },
+            { key: 'completed', label: 'Done' },
+        ],
+
+        async init() {
+            await this.loadTeams();
+            setInterval(() => this.refresh(), 30000);
+        },
+
+        async loadTeams() {
+            try {
+                const resp = await fetch('/api/teams/?status=active');
+                const json = await resp.json();
+                if (json.success) {
+                    // Also load planning teams
+                    const resp2 = await fetch('/api/teams/?status=planning');
+                    const json2 = await resp2.json();
+                    this.teams = [...(json.data.teams || []), ...(json2.data.teams || [])];
+                    if (this.teams.length > 0 && !this.selectedTeam) {
+                        await this.selectTeam(this.teams[0].id);
+                    }
+                }
+            } catch(e) { console.error('Load teams failed:', e); }
+        },
+
+        async selectTeam(teamId) {
+            try {
+                const resp = await fetch('/api/teams/' + teamId + '/');
+                const json = await resp.json();
+                if (json.success) {
+                    this.selectedTeam = json.data;
+                    this.teamMembers = json.data.members || [];
+                    this.teamEvents = json.data.recent_events || [];
+                }
+                // Load tasks
+                const tResp = await fetch('/api/teams/' + teamId + '/tasks/');
+                const tJson = await tResp.json();
+                if (tJson.success) this.teamTasks = tJson.data.tasks || [];
+            } catch(e) { console.error('Select team failed:', e); }
+        },
+
+        async refresh() {
+            if (this.selectedTeam) {
+                await this.selectTeam(this.selectedTeam.id);
+            }
+        },
+
+        tasksByStatus(status) {
+            if (status === 'pending') {
+                return this.teamTasks.filter(t => t.status === 'pending' || t.status === 'assigned');
+            }
+            return this.teamTasks.filter(t => t.status === status);
+        },
+
+        async createTeam() {
+            if (!this.newTeamName.trim() || !this.newTeamMission.trim()) return;
+            try {
+                const resp = await fetch('/api/teams/', {
+                    method: 'POST',
+                    headers: csrfHeaders(),
+                    body: JSON.stringify({ name: this.newTeamName, mission: this.newTeamMission }),
+                });
+                const json = await resp.json();
+                if (json.success) {
+                    this.showNewTeam = false;
+                    this.newTeamName = '';
+                    this.newTeamMission = '';
+                    await this.loadTeams();
+                    await this.selectTeam(json.data.id);
+                }
+            } catch(e) { console.error('Create team failed:', e); }
+        },
+
+        async createTask() {
+            if (!this.newTaskTitle.trim() || !this.selectedTeam) return;
+            try {
+                const body = {
+                    title: this.newTaskTitle,
+                    description: this.newTaskDesc,
+                    priority: this.newTaskPriority,
+                    repo: this.newTaskRepo,
+                    branch: this.newTaskBranch,
+                };
+                if (this.newTaskAssignee) body.assigned_to = parseInt(this.newTaskAssignee);
+                const resp = await fetch('/api/teams/' + this.selectedTeam.id + '/tasks/', {
+                    method: 'POST',
+                    headers: csrfHeaders(),
+                    body: JSON.stringify(body),
+                });
+                const json = await resp.json();
+                if (json.success) {
+                    this.showNewTask = false;
+                    this.newTaskTitle = '';
+                    this.newTaskDesc = '';
+                    this.newTaskPriority = 'medium';
+                    this.newTaskAssignee = '';
+                    this.newTaskRepo = '';
+                    this.newTaskBranch = '';
+                    await this.selectTeam(this.selectedTeam.id);
+                }
+            } catch(e) { console.error('Create task failed:', e); }
+        },
+
+        eventIcon(type) {
+            const icons = {
+                task_assigned: '\u{1F4CB}',
+                task_started: '\u{25B6}\uFE0F',
+                task_completed: '\u2705',
+                task_blocked: '\u26A0\uFE0F',
+                task_unblocked: '\u{1F513}',
+                pr_opened: '\u{1F4CB}',
+                pr_merged: '\u{1F500}',
+                review_completed: '\u{1F50D}',
+                agent_joined: '\u{1F464}',
+                agent_left: '\u{1F6AA}',
+                mission_started: '\u{1F680}',
+                mission_completed: '\u{1F3C1}',
+            };
+            return icons[type] || '\u{1F514}';
+        },
+
+        timeAgo(iso) {
+            const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+            if (diff < 60) return 'just now';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            return Math.floor(diff / 86400) + 'd ago';
+        },
+    }
+}
+
+function csrfHeaders() {
+    return {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+    };
+}
+</script>
+{% endblock %}

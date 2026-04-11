@@ -1,0 +1,279 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
+    <title>{% block title %}NockCC — Claude Command Center{% endblock %}</title>
+
+    <!-- Fonts: Geist (UI) + Geist Mono (code/technical) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- NockCC Design System -->
+    <link rel="stylesheet" href="/static/css/nockcc.css">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@0.445.0/dist/umd/lucide.min.js"></script>
+
+    <!-- Alpine.js CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.9/dist/cdn.min.js"></script>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- PWA -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body x-data="{
+    sidebarCollapsed: localStorage.getItem('nockcc-sidebar-collapsed') === 'true',
+    mobileSidebarOpen: false,
+    toggleSidebar() {
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+        localStorage.setItem('nockcc-sidebar-collapsed', this.sidebarCollapsed);
+    }
+}">
+
+    {% if user.is_authenticated %}
+    <div class="ncc-layout">
+
+        <!-- Sidebar -->
+        <aside class="ncc-sidebar" :class="{ 'collapsed': sidebarCollapsed, 'mobile-open': mobileSidebarOpen }">
+
+            <!-- Sidebar Header -->
+            <div class="ncc-sidebar-header">
+                <a href="/" class="ncc-sidebar-logo">
+                    <img src="{% static 'images/nock-logo-icon.png' %}" alt="Nock" style="width: 28px; height: 28px; border-radius: var(--radius-md); flex-shrink: 0;">
+                    <div class="ncc-sidebar-logo-text">
+                        <div style="font-weight: 700; font-size: var(--text-base); line-height: 1.2;">NockCC</div>
+                        <div style="font-size: 10px; color: var(--text-muted); line-height: 1.2;">Command Center</div>
+                    </div>
+                </a>
+                <button @click="toggleSidebar()" style="color: var(--text-muted); padding: var(--space-1); border-radius: var(--radius-md); transition: color var(--transition-fast);" class="ncc-sidebar-toggle" title="Toggle sidebar">
+                    <i x-show="!sidebarCollapsed" data-lucide="panel-left-close" style="width: 18px; height: 18px;"></i>
+                    <i x-show="sidebarCollapsed" data-lucide="panel-left-open" style="width: 18px; height: 18px;"></i>
+                </button>
+            </div>
+
+            <!-- Sidebar Navigation -->
+            <nav class="ncc-sidebar-nav">
+
+                <!-- Operations -->
+                <div class="ncc-sidebar-section-label">Operations</div>
+                <a href="/" class="ncc-sidebar-item {% if request.path == '/' %}active{% endif %}" title="Nerve Center">
+                    <i data-lucide="radar" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Nerve Center</span>
+                </a>
+                <a href="/pipeline/" class="ncc-sidebar-item {% if '/pipeline/' in request.path %}active{% endif %}" title="Pipeline">
+                    <i data-lucide="git-pull-request" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Pipeline</span>
+                </a>
+                <a href="/sessions/" class="ncc-sidebar-item {% if '/sessions/' in request.path %}active{% endif %}" title="Sessions">
+                    <i data-lucide="terminal" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Sessions</span>
+                </a>
+
+                <!-- Intelligence -->
+                <div class="ncc-sidebar-section-label">Intelligence</div>
+                <a href="/brain/" class="ncc-sidebar-item {% if request.path == '/brain/' %}active{% endif %}" title="Brain">
+                    <i data-lucide="brain" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Brain</span>
+                </a>
+                <a href="/brain/diary/" class="ncc-sidebar-item {% if '/brain/diary/' in request.path %}active{% endif %}" title="Diary">
+                    <i data-lucide="book-heart" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Diary</span>
+                </a>
+                <a href="/brain/handoffs/" class="ncc-sidebar-item {% if '/brain/handoffs/' in request.path %}active{% endif %}" title="Handoffs">
+                    <i data-lucide="git-compare-arrows" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Handoffs</span>
+                </a>
+                <a href="/brain/research/" class="ncc-sidebar-item {% if '/brain/research/' in request.path %}active{% endif %}" title="Research">
+                    <i data-lucide="search" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Research</span>
+                </a>
+                <a href="/intelligence/advisor/" class="ncc-sidebar-item {% if '/intelligence/advisor/' in request.path %}active{% endif %}" title="AI Advisor">
+                    <i data-lucide="sparkles" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">AI Advisor</span>
+                </a>
+                <a href="/intelligence/alerts/" class="ncc-sidebar-item {% if '/intelligence/alerts/' in request.path %}active{% endif %}" title="Alerts">
+                    <i data-lucide="bell-ring" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Alerts</span>
+                </a>
+                <a href="/intelligence/executive/" class="ncc-sidebar-item {% if '/intelligence/executive/' in request.path %}active{% endif %}" title="Executive">
+                    <i data-lucide="bar-chart-3" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Executive</span>
+                </a>
+
+                <!-- Business -->
+                <div class="ncc-sidebar-section-label">Business</div>
+                <a href="/spend/" class="ncc-sidebar-item {% if '/spend/' in request.path %}active{% endif %}" title="Spend">
+                    <i data-lucide="wallet" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Spend</span>
+                </a>
+                <a href="/crm/" class="ncc-sidebar-item {% if '/crm/' in request.path %}active{% endif %}" title="CRM">
+                    <i data-lucide="users" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">CRM</span>
+                </a>
+                <a href="/pm/tasks/" class="ncc-sidebar-item {% if request.path == '/pm/tasks/' %}active{% endif %}" title="Tasks">
+                    <i data-lucide="check-square" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Tasks</span>
+                </a>
+                <a href="/pm/" class="ncc-sidebar-item {% if '/pm/' in request.path and request.path != '/pm/tasks/' %}active{% endif %}" title="Projects">
+                    <i data-lucide="kanban-square" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Projects</span>
+                </a>
+                <a href="/vault/" class="ncc-sidebar-item {% if '/vault/' in request.path %}active{% endif %}" title="Vault">
+                    <i data-lucide="archive" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Vault</span>
+                </a>
+
+                <!-- System -->
+                <div class="ncc-sidebar-section-label">System</div>
+                <a href="/teams/" class="ncc-sidebar-item {% if '/teams/' in request.path %}active{% endif %}" title="Teams">
+                    <i data-lucide="bot" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Teams</span>
+                </a>
+                <a href="/prompts/" class="ncc-sidebar-item {% if '/prompts/' in request.path %}active{% endif %}" title="Prompts">
+                    <i data-lucide="message-square" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Prompts</span>
+                </a>
+                <a href="/remote/chat/" class="ncc-sidebar-item {% if '/remote/' in request.path %}active{% endif %}" title="Chat">
+                    <i data-lucide="message-circle" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Chat</span>
+                </a>
+                <a href="/notifications/" class="ncc-sidebar-item {% if '/notifications/' in request.path %}active{% endif %}" title="Notifications">
+                    <i data-lucide="bell" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Notifications</span>
+                </a>
+                <a href="/context/" class="ncc-sidebar-item {% if '/context/' in request.path %}active{% endif %}" title="Context">
+                    <i data-lucide="file-text" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Context</span>
+                </a>
+
+            </nav>
+
+            <!-- User Section -->
+            <div class="ncc-sidebar-user">
+                <div class="ncc-sidebar-user-avatar">{{ user.username|first|upper }}</div>
+                <div class="ncc-sidebar-user-info">
+                    <div style="font-size: var(--text-sm); font-weight: 500; color: var(--text-primary);">{{ user.username }}</div>
+                    <a href="/accounts/logout/" style="font-size: var(--text-xs); color: var(--text-muted); transition: color var(--transition-fast);">Sign out</a>
+                </div>
+            </div>
+
+        </aside>
+
+        <!-- Mobile Sidebar Backdrop -->
+        <div class="ncc-sidebar-backdrop" x-show="mobileSidebarOpen" @click="mobileSidebarOpen = false"></div>
+
+        <!-- Main Content -->
+        <main class="ncc-main">
+
+            <!-- Mobile Top Bar -->
+            <div class="ncc-mobile-topbar">
+                <button @click="mobileSidebarOpen = true" style="color: var(--text-secondary); padding: var(--space-1);" aria-label="Open navigation">
+                    <i data-lucide="menu" style="width: 22px; height: 22px;"></i>
+                </button>
+                <span class="ncc-gradient-text font-bold text-lg">NockCC</span>
+                <div class="spacer"></div>
+            </div>
+
+            <!-- Messages -->
+            {% if messages %}
+            <div style="margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2);">
+                {% for message in messages %}
+                <div class="ncc-alert {% if message.tags == 'error' %}ncc-alert-error{% elif message.tags == 'success' %}ncc-alert-success{% elif message.tags == 'warning' %}ncc-alert-warning{% else %}ncc-alert-info{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+
+        </main>
+
+        <!-- Mobile Bottom Tabs -->
+        <nav class="ncc-bottom-tabs">
+            <a href="/" class="ncc-bottom-tab {% if request.path == '/' %}active{% endif %}">
+                <i data-lucide="radar" style="width: 20px; height: 20px;"></i>
+                <span>Home</span>
+            </a>
+            <a href="/pipeline/" class="ncc-bottom-tab {% if '/pipeline/' in request.path %}active{% endif %}">
+                <i data-lucide="git-pull-request" style="width: 20px; height: 20px;"></i>
+                <span>Pipeline</span>
+            </a>
+            <a href="/brain/" class="ncc-bottom-tab {% if '/brain/' in request.path %}active{% endif %}">
+                <i data-lucide="brain" style="width: 20px; height: 20px;"></i>
+                <span>Brain</span>
+            </a>
+            <a href="/sessions/" class="ncc-bottom-tab {% if '/sessions/' in request.path %}active{% endif %}">
+                <i data-lucide="terminal" style="width: 20px; height: 20px;"></i>
+                <span>Sessions</span>
+            </a>
+            <a href="/remote/chat/" class="ncc-bottom-tab {% if '/remote/' in request.path %}active{% endif %}">
+                <i data-lucide="message-circle" style="width: 20px; height: 20px;"></i>
+                <span>Chat</span>
+            </a>
+        </nav>
+
+    </div>
+    {% else %}
+    <!-- Unauthenticated: no sidebar, just content -->
+    <main style="padding: var(--space-6); min-height: 100vh;">
+        {% if messages %}
+        <div style="margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2);">
+            {% for message in messages %}
+            <div class="ncc-alert {% if message.tags == 'error' %}ncc-alert-error{% elif message.tags == 'success' %}ncc-alert-success{% elif message.tags == 'warning' %}ncc-alert-warning{% else %}ncc-alert-info{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </main>
+    {% endif %}
+
+    <!-- Lucide Icons Init — MutationObserver re-runs after Alpine renders -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof lucide === 'undefined') return;
+        lucide.createIcons();
+
+        var scheduled = false;
+        new MutationObserver(function() {
+            if (scheduled) return;
+            scheduled = true;
+            requestAnimationFrame(function() {
+                scheduled = false;
+                lucide.createIcons();
+            });
+        }).observe(document.body, { childList: true, subtree: true });
+    });
+    </script>
+
+    <!-- Service Worker -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    }
+    </script>
+
+    {% block extra_scripts %}{% endblock %}
+
+    <!-- Tab visibility reconnect — fixes agent showing offline after mobile tab backgrounding -->
+    <script>
+    (function () {
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState !== 'visible') return;
+        document.dispatchEvent(new CustomEvent('nockcc:tabvisible'));
+      });
+    })();
+    </script>
+</body>
+</html>

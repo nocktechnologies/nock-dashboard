@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}PR #{{ pr.number }} — {{ pr.repository }} — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Timeline connector */
+  .timeline-line {
+    position: absolute;
+    left: 9px;
+    top: 10px;
+    bottom: 10px;
+    width: 1px;
+    background-color: var(--bg-border);
+  }
+  .timeline-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-full);
+    border: 2px solid var(--bg-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .timeline-dot-open    { border-color: var(--color-accent); background: var(--color-accent-dim); }
+  .timeline-dot-merged  { border-color: var(--bg-border-hover); background: rgba(148, 163, 184, 0.1); }
+  .timeline-dot-success { border-color: var(--color-success); background: rgba(52, 211, 153, 0.15); }
+  .timeline-dot-danger  { border-color: var(--color-danger); background: rgba(248, 113, 113, 0.15); }
+  .timeline-dot-review  { border-color: var(--color-warning); background: rgba(251, 191, 36, 0.15); }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+  @media (max-width: 767px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  .stat-card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--bg-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-align: center;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<div style="margin-bottom:var(--space-6);">
+  <div style="display:flex; align-items:center; gap:var(--space-2); margin-bottom:var(--space-2);" class="text-sm text-muted">
+    <a href="/pipeline/" style="transition:color var(--transition-fast);"
+       onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color=''">
+      <i data-lucide="arrow-left" style="width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:var(--space-1);"></i>Pipeline
+    </a>
+    <span>/</span>
+    <span class="font-mono">{{ pr.repository }}</span>
+    <span>/</span>
+    <span>#{{ pr.number }}</span>
+  </div>
+
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-4);">
+    <div>
+      <h1 class="ncc-page-title" style="margin-bottom:var(--space-1);">{{ pr.title }}</h1>
+      <div style="display:flex; align-items:center; gap:var(--space-3); flex-wrap:wrap;" class="text-sm text-secondary">
+        <span class="font-mono text-muted">{{ pr.branch }}</span>
+        <span>by <strong class="text-primary">{{ pr.author }}</strong></span>
+        <span>opened {{ pr.opened_at|timesince }} ago</span>
+        {% if pr.merged_at %}<span style="color:var(--text-secondary);">merged {{ pr.merged_at|timesince }} ago</span>{% endif %}
+        {% if pr.generating_agent %}<span class="text-xs text-muted">via {{ pr.generating_agent }}</span>{% endif %}
+      </div>
+    </div>
+    <div style="flex-shrink:0;">
+      {% if pr.state == 'open' %}
+      <span class="ncc-badge ncc-badge-open" style="padding:var(--space-1) var(--space-3); font-size:var(--text-sm);">Open</span>
+      {% elif pr.state == 'merged' %}
+      <span class="ncc-badge ncc-badge-merged" style="padding:var(--space-1) var(--space-3); font-size:var(--text-sm);">Merged</span>
+      {% else %}
+      <span class="ncc-badge ncc-badge-closed" style="padding:var(--space-1) var(--space-3); font-size:var(--text-sm);">Closed</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Stats row -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <p class="text-xs text-muted" style="margin-bottom:var(--space-1);">
+      <i data-lucide="file-text" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> Files
+    </p>
+    <p class="font-mono font-bold text-lg text-secondary">{{ pr.files_changed }}</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-xs text-muted" style="margin-bottom:var(--space-1);">
+      <i data-lucide="plus" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> Additions
+    </p>
+    <p class="font-mono font-bold text-lg text-success">+{{ pr.additions }}</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-xs text-muted" style="margin-bottom:var(--space-1);">
+      <i data-lucide="minus" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> Deletions
+    </p>
+    <p class="font-mono font-bold text-lg text-danger">-{{ pr.deletions }}</p>
+  </div>
+  <div class="stat-card">
+    <p class="text-xs text-muted" style="margin-bottom:var(--space-1);">
+      <i data-lucide="check-circle" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> Tests Pass
+    </p>
+    <p class="font-mono font-bold text-lg {% if pr.tests_passed %}text-success{% else %}text-muted{% endif %}">
+      {% if pr.tests_passed is not None %}{{ pr.tests_passed }}{% else %}—{% endif %}
+    </p>
+  </div>
+  <div class="stat-card">
+    <p class="text-xs text-muted" style="margin-bottom:var(--space-1);">
+      <i data-lucide="x-circle" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> Tests Fail
+    </p>
+    <p class="font-mono font-bold text-lg {% if pr.tests_failed %}text-danger{% else %}text-muted{% endif %}">
+      {% if pr.tests_failed is not None %}{{ pr.tests_failed }}{% else %}—{% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- Status badges -->
+<div style="display:flex; align-items:center; gap:var(--space-4); margin-bottom:var(--space-6); flex-wrap:wrap;">
+  <div style="display:flex; align-items:center; gap:var(--space-2);">
+    <span class="text-xs text-muted">
+      <i data-lucide="rabbit" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> CodeRabbit:
+    </span>
+    {% if pr.coderabbit_status == 'approved' %}
+    <span class="ncc-badge ncc-badge-approved"><span class="ncc-dot ncc-dot-success"></span> Approved</span>
+    {% elif pr.coderabbit_status == 'changes_requested' %}
+    <span class="ncc-badge ncc-badge-review"><span class="ncc-dot ncc-dot-warning"></span> Changes Requested</span>
+    {% elif pr.coderabbit_status == 'reviewing' %}
+    <span class="ncc-badge ncc-badge-review"><span class="ncc-dot ncc-dot-warning ncc-dot-pulse"></span> Reviewing</span>
+    {% elif pr.coderabbit_status == 'not_applicable' %}
+    <span class="ncc-badge ncc-badge-draft">N/A</span>
+    {% else %}
+    <span class="ncc-badge ncc-badge-draft">Pending</span>
+    {% endif %}
+  </div>
+  <div style="display:flex; align-items:center; gap:var(--space-2);">
+    <span class="text-xs text-muted">
+      <i data-lucide="activity" style="width:12px;height:12px;display:inline-block;vertical-align:middle;margin-right:2px;"></i> CI:
+    </span>
+    {% if pr.ci_status == 'passed' %}
+    <span class="ncc-badge ncc-badge-approved"><span class="ncc-dot ncc-dot-success"></span> Passed</span>
+    {% elif pr.ci_status == 'failed' %}
+    <span class="ncc-badge ncc-badge-closed"><span class="ncc-dot ncc-dot-danger"></span> Failed</span>
+    {% elif pr.ci_status == 'running' %}
+    <span class="ncc-badge ncc-badge-review"><span class="ncc-dot ncc-dot-warning ncc-dot-pulse"></span> Running</span>
+    {% else %}
+    <span class="ncc-badge ncc-badge-draft">Pending</span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Event timeline -->
+<div class="ncc-card">
+  <div class="ncc-card-header">
+    <span class="ncc-card-label">
+      <i data-lucide="clock" style="width:14px;height:14px;"></i> Event Timeline
+    </span>
+  </div>
+  {% if events %}
+  <div style="position:relative;">
+    <!-- vertical line -->
+    <div class="timeline-line"></div>
+    <div style="display:flex; flex-direction:column; gap:var(--space-4);">
+      {% for event in events %}
+      <div style="position:relative; display:flex; gap:var(--space-4);">
+        <!-- dot -->
+        <div class="timeline-dot
+          {% if event.event_type == 'opened' %}timeline-dot-open
+          {% elif event.event_type == 'merged' or event.event_type == 'closed' %}timeline-dot-merged
+          {% elif event.event_type == 'ci_completed' and event.payload.conclusion == 'success' %}timeline-dot-success
+          {% elif event.event_type == 'ci_completed' and event.payload.conclusion == 'failure' %}timeline-dot-danger
+          {% elif event.event_type == 'review_submitted' %}timeline-dot-review
+          {% endif %}">
+        </div>
+        <div style="flex:1; padding-bottom:var(--space-2);">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div>
+              <span class="text-sm font-medium text-primary">{{ event.display_event_type }}</span>
+              {% if event.actor %}
+              <span class="text-xs text-muted" style="margin-left:var(--space-2);">by {% if 'coderabbit' in event.actor %}🐰{% elif 'copilot' in event.actor %}🤖{% elif 'gemini' in event.actor %}✨{% elif 'claude' in event.actor %}🟣{% elif 'codex' in event.actor %}🧬{% else %}👤{% endif %} {{ event.actor }}</span>
+              {% endif %}
+            </div>
+            <span class="text-xs text-muted">{{ event.created_at|timesince }} ago</span>
+          </div>
+          {% if event.payload %}
+          <div class="text-xs text-muted" style="margin-top:var(--space-1);">
+            {% if event.event_type == 'ci_completed' %}
+              CI: {{ event.payload.conclusion|default:"—" }}
+              {% if event.payload.name %} · {{ event.payload.name }}{% endif %}
+            {% elif event.event_type == 'review_submitted' %}
+              {{ event.payload.state|default:"" }}
+              {% if event.payload.body %}· {{ event.payload.body|truncatechars:80 }}{% endif %}
+            {% elif event.event_type == 'opened' %}
+              PR opened
+            {% elif event.event_type == 'closed' %}
+              {% if event.payload.merged %}Merged{% else %}Closed without merge{% endif %}
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <p class="text-sm text-muted" style="text-align:center; padding:var(--space-6) 0;">No events recorded</p>
+  {% endif %}
+</div>
+{% endblock %}

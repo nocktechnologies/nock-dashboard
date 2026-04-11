@@ -1,0 +1,377 @@
+# Changelog
+
+All notable changes to NockCC are documented here. Organized by PR/merge to main.
+
+---
+
+## [Unreleased] — 2026-04-10
+
+### Changed
+- **Terminal Electron hardening pass** (`terminal-electron/`) — closed the Electron-side security and dead-code issues from the April 11 review.
+  - Main-process settings writes are now validated and sanitized before persistence; `devRoots` no longer trusts renderer input blindly
+  - File access checks now resolve real paths and block sibling-prefix escapes and symlink escapes before `read`, `write`, `stat`, `gitStatus`, or file watching proceeds
+  - Session-discovered project roots are granted explicitly so the sidebar file tree still works without widening the filesystem sandbox globally
+  - Prompt-library execution is now wired into the AI chat panel, cross-platform context-file detection works on macOS/Linux, and file-tree "Copy Content" now copies actual file text
+  - Removed dead code (`src/utils/ipc.js`, unused editor save helper, unused theme exports, unused `png-to-ico` dependency) and added Node regression tests for the path policy
+  - Upgraded the Terminal Electron toolchain (`electron` 41.2.0, `electron-builder` 26.8.1, `vite` 8.0.8, `@vitejs/plugin-react` 6.0.1, `wait-on` 9.0.5, explicit `esbuild`) and pinned patched `axios`/`dompurify` via `overrides`
+  - Verification: `npm test`, `npm audit --json`, `npm audit --omit=dev --json`, `npx knip --no-progress`, and `npm run build` all complete successfully; both audit passes now report 0 vulnerabilities
+
+### Added
+- **OAuth 2.1 shim for the MCP Streamable HTTP transport** (`core/oauth/`) — claude.ai custom connectors refuse to talk to a plain bearer-token MCP server, they require OAuth 2.1 per MCP spec 2025-03-26. This single-user shim runs just enough of the protocol to let claude.ai complete its handshake and walk away with `NOCKCC_API_KEY` as the access token.
+  - **Discovery**: `/.well-known/oauth-protected-resource/mcp` (RFC 9728) and `/.well-known/oauth-authorization-server` (RFC 8414) served as static JSON. The 401 on `/mcp/` now includes a `resource_metadata="…"` attribute in the `WWW-Authenticate` header so claude.ai can discover the OAuth server automatically.
+  - **Dynamic client registration** (`POST /oauth/register`, RFC 7591) auto-accepts any well-formed client with real `http://` or `https://` redirect URIs and returns a fresh `client_id`. No secrets — public clients only, PKCE S256 enforced.
+  - **Authorize endpoint** (`GET /oauth/authorize`) auto-approves every request because this is a single-user instance (no consent screen), validates PKCE S256 (`plain` rejected — OAuth 2.1 deprecates it), mints a 60-second authorization code in Redis, and 302s to the registered redirect URI preserving `state`.
+  - **Token endpoint** (`POST /oauth/token`) pops the code atomically so it can't be reused, validates `client_id`, `redirect_uri`, PKCE verifier (SHA-256 constant-time compare), and returns `NOCKCC_API_KEY` as the access token. The existing `BearerAuthMiddleware` on `/mcp/` accepts it with zero changes.
+  - **Storage**: direct `redis-py` with 60s TTLs for auth codes and 30d TTLs for registered clients. `StorageUnavailable` exceptions are caught in the view layer and converted to clean OAuth `server_error` 503 responses instead of 500 tracebacks.
+  - **Enable flag**: `NOCKCC_OAUTH_ENABLED=1`. When off, every OAuth endpoint returns 404 and the shim is dormant — no discovery advertising, no endpoints exposed.
+  - **Rate limits**: `django-ratelimit` at 20/min per IP on register/authorize/token.
+  - **Security note**: single-user only. Anyone who completes the OAuth dance gets the master API key. The flag and rate limits exist specifically because of this. Do not copy the pattern into a multi-tenant service.
+  - 23 new tests in `core/tests/test_oauth.py` — discovery JSON shape, register validation, authorize PKCE+client+redirect_uri rejection, token exchange happy path + every failure mode (wrong verifier / code reuse / client mismatch / redirect mismatch / wrong grant_type / API key missing), full end-to-end register → authorize → token flow, `/mcp` bare-path 308 redirect, `WWW-Authenticate: resource_metadata` toggling with the enable flag.
+- **`/mcp` trailing-slash redirect** (`config/asgi.py`) — Starlette's `Mount("/mcp", ...)` only matches `/mcp/` and `/mcp/foo`, so a bare `/mcp` used to 404. claude.ai probes the bare path during discovery, so this was silently breaking connector setup. An explicit `Route("/mcp")` now 308s to `/mcp/` preserving method and body.
+- **MCP Streamable HTTP transport** (`mcp_server/http_app.py`) — the same 42 tools Mara has via stdio are now reachable over HTTP at `/mcp` for claude.ai custom connectors and any other remote MCP client.
+  - Streamable HTTP transport per the 2025-03-26 MCP spec (the replacement for deprecated HTTP+SSE) via `StreamableHTTPSessionManager` from the MCP SDK
+  - Mounted inside the existing Django ASGI app — one deploy, one domain, one TLS cert, no new service on Railway
+  - Bearer-token auth (`Authorization: Bearer <NOCKCC_API_KEY>`) with `X-API-Key` fallback so the same secret works across every NockCC surface; constant-time comparison via `secrets.compare_digest`
+  - Unauthenticated `/mcp/health` liveness route for Railway health checks and uptime monitors
+  - Shared tool registry (`mcp_server/registry.py`) — stdio (`mcp_server/server.py`) and HTTP (`mcp_server/http_app.py`) both import the same `ALL_TOOLS`, `TOOL_MODULES`, and `dispatch_tool_call()`, so new tools land in both transports automatically
+  - Lifespan wiring in `config/asgi.py` hoists `session_manager.run()` to the outer Starlette router because `Mount` drops lifespan events for sub-apps (caveat documented in `mcp_server/README.md`)
+  - 25 new tests: 10 auth-middleware unit tests (health exemption, missing/wrong token, wrong scheme, case-insensitive bearer, X-API-Key fallback, bearer precedence, missing server key), 4 end-to-end tests using the MCP SDK's own `streamable_http_client` pointed at the in-process ASGI app (health, missing/wrong auth, full `initialize`→`tools/list` handshake), 11 registry invariant tests (no duplicate names, schema shape, back-compat aliases)
+  - `pytest.ini` now includes `mcp_server/tests` in `testpaths`, so every MCP test (93 total, including the previously-orphaned tests from PRs #70 and #71) runs in CI for the first time
+  - `mcp_server/README.md` updated with the full claude.ai custom-connector setup walkthrough
+- **PM plugin UI polish** — dashboard/pm_project_detail.html now a real daily-driver workspace.
+  - Inline task detail panel (click any task row) — edit name, description, priority, status, due date, assignee, section, tags; Save / Complete / Reopen / Delete buttons
+  - Row-level complete checkbox that strike-throughs the task and sinks completed items to the bottom of their section
+  - Inline "+ Add Section" form — type name, hit Enter, section appears
+  - Collapsible section groups with live task counts (click section header to toggle)
+  - Enriched task rows: colored priority badges (urgent=red, high=orange, medium=yellow, low=gray), status badges, assignee pill, due-date text
+  - Overdue tasks get red left border + red due-date text
+  - Double-click task name for inline rename
+  - New-task modal extended with Description (textarea), Status (dropdown), and Assignee fields
+- **Cross-project Tasks dashboard** (`/pm/tasks/`) — single page showing every task across every project, backed by `/api/pm/api/tasks/?ordering=-priority`
+  - Client-side filters: project, priority, status, completion state, overdue-only toggle
+  - Per-row: complete checkbox, project link, task name, priority badge, due date, assignee, status badge
+  - Sidebar "Tasks" nav link now points here
+- **MCP Handoff tools** (`mcp_server/tools/handoffs.py`) — 3 new tools wired through `/api/brain/handoffs/`
+  - `nockcc_handoff_read` — fetch current handoff for a context (cortextos-agent / claude-chat / kit-session / codex-session)
+  - `nockcc_handoff_write` — create or overwrite; archives the prior version automatically
+  - `nockcc_handoff_list` — summary of all active handoffs (no content)
+  - 11 new tests in `mcp_server/tests/test_handoffs.py` covering context validation, endpoint routing, body shape, and defaults
+  - Total MCP tool count now 42 across 12 groups (was 39/11)
+- **Projects app** (`projects/`) — standalone reusable Django REST app for lightweight project management.
+  - Models: `Project`, `Section`, `Task`, `TaskComment`
+  - API endpoints for project CRUD, section CRUD/reorder, task CRUD/filtering, comments, dashboard, overdue/today/upcoming views
+  - Management commands: `import_from_asana`, `task_stats`
+  - 66 tests covering models, filters, API auth/CRUD/actions, dashboard views, and import idempotency
+  - App README at `projects/README.md`
+- **Asana two-way sync** (`tasks/`) — NockCC becomes a read/write proxy so Mara and the MCP server can create, update, complete, move, comment on, and delete Asana tasks through the NockCC API. Asana remains the source of truth.
+  - New write helpers in `tasks/asana_client.py`: `create_task`, `update_task`, `complete_task`, `uncomplete_task`, `delete_task`, `add_task_to_section`, `add_comment`, `get_sections`. Shared `_request_with_retry` handles 429 backoff and surfaces Asana's `errors[].message` envelope.
+  - New `AsanaSection` model (cached per project) + `AsanaTask.deleted_at` for soft delete. Migration `0003_asanatask_deleted_at_asanasection`.
+  - New write endpoints under `/api/tasks/` — all gated by `require_brain_access`:
+    - `POST /api/tasks/create/`
+    - `PUT /api/tasks/<gid>/update/`
+    - `POST /api/tasks/<gid>/complete/` + `/uncomplete/`
+    - `POST /api/tasks/<gid>/move/` (same-project only — cross-project moves rejected)
+    - `POST /api/tasks/<gid>/comment/`
+    - `DELETE /api/tasks/<gid>/delete/` (soft-deletes locally, hard-deletes in Asana)
+  - New cross-project read endpoints that hit local DB only (fast path for morning briefs / heartbeat crons):
+    - `GET /api/tasks/all/` (filters: `project_gid`, `priority`, `due_before`, `due_after`, `overdue`, `completed`, `limit`)
+    - `GET /api/tasks/overdue/` — sorted by days overdue
+    - `GET /api/tasks/today/`
+    - `GET /api/tasks/summary/` — total / incomplete / completed / overdue, by priority, by project
+    - `GET /api/tasks/sections/<project_gid>/` (optional `?refresh=true` forces a fresh pull from Asana)
+  - **Asana-first write discipline** — every write follows validate → call Asana → mirror to local DB. Local DB is never mutated if the Asana call fails (prevents sync drift). Covered by regression tests.
+  - **Priority stays local** — Asana free tier lacks a native priority custom field, so `AsanaTask.priority` is never forwarded to Asana. Local-only updates (priority alone) skip the Asana round-trip entirely.
+  - Celery sync (`sync_asana_projects`) now also pulls project sections into `AsanaSection` and skips soft-deleted rows during orphan cleanup so deleted tasks don't resurrect themselves.
+  - 32 new tests in `tasks/tests/test_write_api.py` covering create / update / complete / move / comment / delete, cross-project reads, auth, Asana failure rollback, retry/backoff, and priority isolation.
+- **Research Library** (`brain/`) — semantic search over Mara's 413-file Obsidian research vault via pgvector
+  - `ResearchDocument` + `ResearchChunk` models with pgvector `VectorField(dimensions=1536)` and ivfflat cosine index
+  - Chunking strategy (`brain/chunking.py`) — splits on markdown headers, ~500-word chunks with 100-word overlap, preserves parent heading in metadata
+  - OpenAI `text-embedding-3-small` integration (`brain/embeddings.py`) with batch support
+  - Management commands: `ingest_research` (idempotent vault import via SHA-256 hash), `embed_research` (chunk + embed unindexed docs), `search_research` (CLI test)
+  - API endpoints under `/api/brain/research/`: `search/`, `documents/`, `documents/<slug>/`, `topics/`, `stats/` — all gated by `require_brain_access` with rate limiting
+  - Database migration `0009_research_library` with conditional `CREATE EXTENSION vector` (PostgreSQL only, no-op on SQLite)
+  - Added `pgvector==0.3.6` and `openai==1.54.4` to requirements; added `OPENAI_API_KEY` setting
+  - 38 tests covering chunking, models, ingestion idempotency, API endpoints, vector ranking, topic filtering, auth
+  - Estimated corpus embedding cost: ~$0.08 for the full 22MB vault
+- **MCP Server** (`mcp_server/`) — gives Mara native read/write access to NockCC from any Claude session via the Model Context Protocol
+  - 39 tools across 11 groups: diary, memory, pipeline, sessions, spend, tasks, CRM, teams, prompts, alerts, research
+  - `nockcc_diary_recent` + `nockcc_diary_brief` at session start → context reconstitution in seconds
+  - `nockcc_prompts_create` → Mara queues work for Kit directly
+  - Graceful handling of unimplemented endpoints (404/501) — all 39 tools defined, backend-ready
+  - Auth via `NOCKCC_API_KEY` env var, API key never logged or exposed in errors
+  - Rate limit (429), 401, 403, 501, connection error, and timeout handling with clear messages
+  - 53 unit tests (all passing): API helper, diary, memory, pipeline, sessions, server routing, security
+  - `mcp_server/requirements.txt` (`mcp>=1.23.0,<2.0.0`, `httpx>=0.27.0`)
+  - `mcp_server/README.md` with setup instructions for Claude Code and claude.ai MCP connector
+
+## [2026-04-08]
+
+### Security
+- **HIGH-1 (Broken Access Control):** Replaced `require_api_key` on all Brain endpoints with new `require_brain_access` decorator that enforces `is_staff=True` for session auth. Non-staff authenticated users now receive 401.
+- **HIGH-2 (Wildcard CORS):** Replaced `CORS_ALLOW_ALL_ORIGINS = True` with explicit `CORS_ALLOWED_ORIGINS` allowlist (`cc.nocktechnologies.io`, `nocktechnologies.io`, `nocktechnologies.com`).
+- **HIGH-3 (No Rate Limiting):** Added `django-ratelimit` decorators to all 11 Brain API endpoints: 100/m reads, 10/m writes, 5/m AI endpoints (`diary_brief`, `generate_brief`, `consolidate`, `send_test_morning_note`). Exceeded limit returns 429 + `Retry-After: 60`.
+- **MEDIUM-4 (CSRF Exempt on Session Writes):** Removed `@csrf_exempt` from all Brain views. `require_brain_access` enforces CSRF via `CsrfViewMiddleware.process_view()` for session auth; API key requests are exempt programmatically. CSRF failure returns JSON envelope (not HTML).
+- **MEDIUM-5 (Invalid Date 500s):** Added `_parse_date_param()` helper in `diary_views.py` — validates `date_from`, `date_to`, and `session_date` (query params + POST body) before ORM use. Invalid formats return 400 with YYYY-MM-DD guidance.
+
+### Added
+- `require_brain_access` decorator in `core/auth.py` — Brain-specific auth with staff gate, conditional CSRF, and 429 rate limit handling
+- 14 new security tests in `brain/tests/test_security.py` covering all 5 findings
+- `DiaryEntry` model in `brain` app — permanent storage for Mara's diary with 6 categories (work/personal/private/design/handoff/in_chat), 5 sources, word count tracking, tags, and Asana migration tracking
+- 7 diary API endpoints at `/api/brain/diary/`: list+create, detail+PATCH, stats, recent, brief (AI synthesis)
+- Diary browser page at `/brain/diary/` — filterable, searchable, expandable entry cards with new entry modal (Alpine.js)
+- Diary stats widget in Nerve Center Brain panel — total entries, total words, entries this week
+- `migrate_diary_from_asana` management command — infrastructure for migrating Asana Volume 1 & 2 into NockCC (future use by Mara)
+- `get_task_stories_paginated` in `tasks/asana_client.py` — paginated comment fetching for large Asana tasks
+- 57 new tests (10 model, 31 API, 3 UI, 10 parsing, 3 integration)
+
+### Changed (Phase 2 Design)
+- Completed emerald design system migration across all 11 remaining app templates
+- Removed Phase 1 backwards-compat `--accent-start`/`--accent-end` CSS aliases — all templates now reference `--color-accent` directly
+- Pipeline: open PRs → emerald border, merged PRs → neutral gray (semantic distinction)
+- CRM: negotiation stage → amber (`--color-warning`), active stage → emerald
+- Vault: legal documents → cyan (`--color-info`), insurance → amber (`--color-warning`)
+- Teams: standard complexity → emerald, deep complexity → cyan; in-review kanban → cyan; hardcoded purple/gray hex replaced with design tokens
+- Extended palette tokens (`--color-blue`, `--color-purple`, `--color-orange` and their dim variants) added to nockcc.css — removes last hardcoded hex from all HTML templates
+- Desktop/desktop-win loader gradient updated to emerald to match Phase 2 brand
+- Design system migrated from blue-purple gradient to emerald (#10B981) brand accent
+- Font swapped from DM Sans → Geist (UI) + Geist Mono (code/technical), loaded from Google Fonts
+- Card depth system upgraded to Supabase-level layered shadows with inset highlights
+- Sidebar active states now use emerald color + emerald-dim background (replaced blue gradient pill)
+- Primary buttons now solid emerald with darker hover and scale-on-press feedback
+- Button/card hover states gated behind `@media (hover: hover)` — no sticky hover on touch devices
+- Emil Kowalski animation tokens added (cubic-bezier ease-out, dur-fast/default/slow)
+- `prefers-reduced-motion` block added — all transform animations disabled for accessibility
+
+### Fixed
+- Android keyboard no longer covers input fields (`interactive-widget=resizes-content` viewport meta)
+- Spend dashboard showing $0 on mobile — service worker now handles `/spend/api/` as network-first
+- Agent status `Cache-Control: no-store` set — prevents stale offline readings on mobile
+- Service worker cache bumped to v2 to force update on existing installations
+
+---
+
+## 2026-04-07
+
+### Repo Standardization — .claude/ Architecture
+- Slimmed CLAUDE.md to lean index (~110 lines) pointing to `.claude/` subdirectories
+- Created `.claude/diagrams/` with 4 Mermaid diagrams: models, API map, data flow, Celery tasks
+- Created `.claude/design/DESIGN.md` with dark theme brand tokens (pitch black, emerald, Geist)
+- Created `.claude/review/PIPELINE.md` with 7-phase review pipeline + priority hierarchy
+- Created `.claude/lessons/` with 3 lesson files: data safety, API conventions, Celery gotchas
+- Created `.claude/decisions/` with 3 ADRs: Django monolith, WebSocket agent control, pseudo-signals
+- Added `.claude/` directory reference to ARCHITECTURE.md
+
+---
+
+## 2026-04-06
+
+### UI Reimagine Phase 2 — Remaining Pages
+- Redesigned Spend Dashboard with KPI cards, budget progress bar, styled tables, and design system chart colors
+- Redesigned CRM Pipeline with kanban board, view toggle, and stage badges
+- Polished Tasks page with project summary cards, filter bar, priority badges, and overdue highlighting
+- Redesigned Vault with document card grid, category icons, and tag badges
+- Redesigned Teams page with design system variables, modal styling, and ncc-* classes
+- Redesigned Prompts page with design system badge and button classes
+- Redesigned Remote Chat to match AI Advisor visual style with chat bubbles and terminal view
+- Redesigned Notifications with channel status dots, rule cards, and notification log
+- Redesigned Context Map with staleness indicators (green/yellow/red borders) and KPI stats
+- Integrated actual Nock Technologies logo in sidebar and login page
+- Added 12 new CSS component sections to nockcc.css: tabs, KPI row, kanban board, toggle switch, staleness indicators, chat components, view toggle, filter bar, document grid, modals, chart wrappers
+
+---
+
+## 2026-04-04
+
+### NockCC Desktop — Windows Electron App
+- Native Windows Electron app wrapping cc.nocktechnologies.io
+- Frameless window with custom title bar (minimize/maximize/close)
+- System tray icon with right-click menu (Show, navigation, Quit)
+- Left-click tray icon toggles window visibility
+- Global shortcut: Ctrl+Shift+N toggles window
+- Keyboard shortcuts (Ctrl+1-7 for sections, plus Chat/Advisor/Executive)
+- Single instance lock — prevents multiple windows
+- Minimize to tray on close
+- Native Windows notifications via IPC bridge
+- Offline handling with retry screen
+- Window state persistence via electron-store
+- Build scripts: PowerShell (.ps1) and batch (.bat)
+- Icon generation: SVG → .ico + .png via sharp + to-ico
+- electron-builder config for portable .exe and NSIS installer
+
+---
+
+## 2026-04-03
+
+### Prompt Queue — Autonomous Agent Pipeline (#43)
+- `PromptFile` and `PromptExecution` models for managed prompt lifecycle
+- Prompt queue UI and API endpoints (`/api/prompts/`)
+- Execute prompts via remote agent with status tracking
+- Dependency ordering between prompts
+- Branch-based PR linking on execution
+
+### Smart Watch — Proactive Observation Loop (#42)
+- `SmartWatchRule` and `SmartWatchEvent` models
+- 5 default rules: PR waiting, long sessions, task due, context high, brain stale
+- `smart_watch_tick` Celery task (every 15 minutes) with cooldown logic
+- Telegram notifications on triggered alerts
+- REST API for rule CRUD and manual tick
+- `seed_smart_watch` management command
+
+## 2026-04-02
+
+### NockCC Desktop — Electron Mac App (#40)
+- Native macOS app wrapping NockCC dashboard
+- Hidden inset title bar, pitch-black theme
+- Menu bar tray icon with quick navigation
+- Global shortcut: Cmd+Shift+N toggles window
+- Keyboard shortcuts (Cmd+1-7 for sections)
+- Native macOS notifications via IPC bridge
+- Offline handling with retry screen
+- Window state persistence via electron-store
+- Build scripts for .app, .dmg, .zip distribution
+
+### Nav Tab Fix (#41)
+- Fix clickable nav tabs under hidden title bar
+
+## 2026-04-01
+
+### Design Polish — Pitch Black Command Center (#38)
+- Full dark theme redesign across all pages
+- Pitch-black cockpit aesthetic
+
+### Mobile Layout Polish (#37)
+- Improved tap targets, card layouts, bottom nav
+- Mobile-first responsive refinements
+
+### Stale Session Cleanup (#36)
+- Auto-cleanup of stale sessions (configurable timeout)
+- Manual cleanup option via management
+
+## 2026-03-31
+
+### Agent Teams — Multi-Agent Orchestration (#35)
+- `AgentTeam`, `TeamMember`, `TeamTask`, `TeamEvent` models
+- Team dashboard at `/teams/teams/`
+- Full REST API for teams, members, tasks
+- Pipeline signal integration: `on_pr_opened`, `on_pr_merged`, `on_review_alert`
+- Task dependencies with blocking/unblocking
+- Telegram notifications on PR events
+
+## 2026-03-30
+
+### Continuity Layer + Brain Consolidation + Morning Note (#34)
+- `MemoryEntry` and `ConsolidationLog` models in brain app
+- Brain consolidation process with three-gate trigger
+- Mara's Morning Note via Telegram (daily maintenance task)
+- Brain context brief API
+
+### Webhook Review Parser + Telegram Notifications (#33)
+- CodeRabbit review status parsing from webhooks
+- Telegram notification channel integration
+
+### Brain App + Nerve Center Homepage (#32)
+- New `brain/` Django app
+- Nerve Center as homepage replacing old dashboard
+- Memory entry CRUD API
+- Category-based brain organization
+
+## 2026-03-29
+
+### Terminal Bridge — Phase 8 (#31)
+- `TerminalHeartbeat` and `SessionReport` models
+- 5 bridge API endpoints at `/api/terminal/`
+- Dashboard executive API includes terminal status
+- 15 new tests (494 total passing)
+
+### Register New Repositories
+- Added Forge, jobcost, and claude-terminal to tracked repos
+- Auto-register repos on deploy via `register_repos`
+
+## 2026-03-28
+
+### Railway Service Routing Fix (#30)
+- SERVICE_ROLE-based entrypoint for web/worker/beat processes
+- Fixed Railway multi-service deployment
+
+## 2026-03-27
+
+### Auth Sweep + Real-Time Track Streaming (#29)
+- Comprehensive auth audit across all endpoints
+- Real-time session output streaming fixes
+
+### Terminal Output View + cc --track Mode (#28)
+- Terminal-style session output viewer
+- `cc --track` CLI flag for live session monitoring
+
+### API Key Auth Migration (#27)
+- All API endpoints switched to X-API-Key auth for mobile app compatibility
+
+### CORS + Mobile API Endpoints
+- CORS support for mobile app
+- Mobile-specific API endpoints
+
+## 2026-03-16
+
+### Phase 5 — AI Intelligence Layer (#26)
+- `intelligence/` Django app
+- `BusinessSnapshot`, `AdvisorConversation`, `AdvisorMessage`, `PredictiveAlert`, `WeeklyMemo` models
+- Executive dashboard (4-quadrant Bloomberg-style) at `/intelligence/executive/`
+- AI Business Advisor chat with Claude Sonnet tool use
+- Predictive alerts: 7 alert types checked every 6 hours
+- Weekly strategy memo (Sunday 6 PM CST) saved to vault + Slack
+- Business snapshot generation (daily 6 AM CST)
+
+### Phase 3 — Business Operations Platform (#25)
+- `crm/` app: Contact, Deal, DealNote models
+- `vault/` app: Document model with file upload
+- Deal pipeline kanban view
+- Contact directory
+- Document storage with category filtering
+
+### Expense Tracking (#24)
+- Expense model added to spend app
+- Redesigned spend dashboard with expense table
+- Net tax calculation includes refund tax
+- Monthly chart nets refunds to match summary totals
+
+## 2026-03-16
+
+### Chat Interface (#23)
+- Chat-style conversation interface for remote Claude Code control
+- `ConversationThread` model with follow-up prompts
+- Session output streaming fixes
+- Alpine proxy issue fix for session IDs
+
+## 2026-03-15
+
+### Phase 2 — Remote Mac Agent (PRs #12–#22)
+- `remote/` Django app with 6 models
+- WebSocket server (Django Channels consumer)
+- Mac agent daemon with auto-reconnect
+- Command queue REST API with HMAC signing
+- SSE output streaming
+- Mobile-optimized UI + PWA manifest
+- Web Push notifications with VAPID
+- Security hardening: session timeout, audit log, token rotation
+- Agent subprocess management (no shell injection)
+- Kill switch for emergency process termination
+
+### Railway Deployment
+- Production deployment to Railway (Daphne + Celery + Beat)
+- Custom domain: cc.nocktechnologies.io
+- PostgreSQL + Redis managed services
+- WhiteNoise static file serving
+
+## 2026-03-14
+
+### Phase 1 — Foundation (PRs #1–#9)
+- Django project scaffold (8 apps, split settings, Celery, Channels)
+- Pipeline: GitHub webhooks, PR tracking, CI status, 4 Celery tasks
+- Sessions: AgentSession model, REST API, CLI tool (`nockcc`)
+- Context: CLAUDE.md inventory, GitHub sync, staleness detection
+- Spend: Anthropic API polling, budget alerts, Chart.js dashboards
+- Tasks: Asana sync, task↔PR fuzzy linkage
+- Notifications: Slack/Discord webhooks, alert rules engine
+- Dark/light theme, responsive layout, custom error pages
+- Login/logout with django-axes brute-force protection
+- 175 tests passing at phase completion

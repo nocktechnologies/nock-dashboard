@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Tax Prep — NockCC{% endblock %}
+
+{% block content %}
+<div>
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">Tax Preparation</h1>
+    <div class="flex items-center gap-3">
+      <a href="{% url 'spend:tax-export' %}" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1.5 rounded-md transition">Export CSV</a>
+      <a href="{% url 'spend:dashboard' %}" class="text-xs text-gray-400 hover:text-white transition">Spend Dashboard</a>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+    <div class="bg-gray-800 border border-gray-700 rounded-lg p-4">
+      <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">Total Deductible</p>
+      <p class="text-3xl font-bold text-white">${{ grand_total|floatformat:2 }}</p>
+    </div>
+    <div class="bg-gray-800 border border-gray-700 rounded-lg p-4">
+      <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">Tax Paid</p>
+      <p class="text-3xl font-bold text-yellow-400">${{ total_tax|floatformat:2 }}</p>
+    </div>
+    <div class="bg-gray-800 border border-gray-700 rounded-lg p-4">
+      <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">Est. Tax Savings</p>
+      <p class="text-3xl font-bold text-green-400">${{ estimated_savings|floatformat:2 }}</p>
+      <p class="text-xs text-gray-500 mt-1">at {{ marginal_rate }}% rate</p>
+    </div>
+    <div class="bg-gray-800/50 border border-gray-700/50 rounded-lg p-3 flex items-center">
+      <form method="get" class="flex items-center gap-2">
+        <label for="rate" class="text-xs text-gray-400">Marginal Rate:</label>
+        <select id="rate" name="rate" class="bg-gray-900 border border-gray-700 rounded-md px-2 py-1 text-xs text-gray-300" onchange="this.form.submit()">
+          {% for r in "10,12,22,24,32,35,37"|make_list %}{% endfor %}
+          <option value="10" {% if marginal_rate == 10 %}selected{% endif %}>10%</option>
+          <option value="12" {% if marginal_rate == 12 %}selected{% endif %}>12%</option>
+          <option value="22" {% if marginal_rate == 22 %}selected{% endif %}>22%</option>
+          <option value="24" {% if marginal_rate == 24 %}selected{% endif %}>24%</option>
+          <option value="32" {% if marginal_rate == 32 %}selected{% endif %}>32%</option>
+          <option value="35" {% if marginal_rate == 35 %}selected{% endif %}>35%</option>
+          <option value="37" {% if marginal_rate == 37 %}selected{% endif %}>37%</option>
+        </select>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tax Categories -->
+  <div class="space-y-4 mb-6" x-data="{ open: {} }">
+    {% for cat in tax_categories %}
+    <div class="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+      <button @click="open['{{ cat.key }}'] = !open['{{ cat.key }}']"
+              class="w-full flex items-center justify-between p-4 text-left hover:bg-gray-700/30 transition">
+        <div>
+          <p class="text-sm font-semibold text-white">{{ cat.title }}</p>
+          <p class="text-xs text-gray-400 mt-0.5">{{ cat.description }}</p>
+        </div>
+        <div class="text-right flex-shrink-0 ml-4">
+          <p class="text-lg font-bold text-white">${{ cat.total|floatformat:2 }}</p>
+          <p class="text-xs text-gray-500">{{ cat.count }} expense{{ cat.count|pluralize }}</p>
+        </div>
+      </button>
+      <div x-show="open['{{ cat.key }}']" x-transition class="border-t border-gray-700">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-xs text-gray-400 uppercase tracking-wider">
+              <th class="text-left px-4 py-2">Date</th>
+              <th class="text-left px-4 py-2">Vendor</th>
+              <th class="text-left px-4 py-2 hidden sm:table-cell">Description</th>
+              <th class="text-right px-4 py-2">Total</th>
+              <th class="text-right px-4 py-2 hidden sm:table-cell">Tax</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-700/50">
+            {% for e in cat.expenses %}
+            <tr class="hover:bg-gray-700/30 transition">
+              <td class="px-4 py-2 text-gray-400 text-xs">{{ e.date }}</td>
+              <td class="px-4 py-2 text-gray-200 text-xs">{{ e.vendor }}</td>
+              <td class="px-4 py-2 text-gray-400 text-xs hidden sm:table-cell">{{ e.description|truncatechars:50 }}</td>
+              <td class="px-4 py-2 text-white text-xs text-right font-medium">${{ e.total|floatformat:2 }}</td>
+              <td class="px-4 py-2 text-gray-400 text-xs text-right hidden sm:table-cell">${{ e.tax|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Disclaimer -->
+  <div class="bg-yellow-900/20 border border-yellow-800/50 rounded-lg px-4 py-3 text-xs text-yellow-300/80">
+    This is an informational summary, not tax advice. Consult a qualified tax professional.
+  </div>
+</div>
+{% endblock %}

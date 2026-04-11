@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Add Expense — NockCC{% endblock %}
+
+{% block content %}
+<div class="max-w-lg mx-auto" x-data="{
+    subtotal: {{ form.initial.subtotal|default:'0' }},
+    tax: {{ form.initial.tax|default:'0' }},
+    get computedTotal() { return (parseFloat(this.subtotal) || 0) + (parseFloat(this.tax) || 0); }
+}">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">Add Expense</h1>
+    <a href="{% url 'spend:dashboard' %}" class="text-xs text-gray-400 hover:text-white transition">Back to Spend</a>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="space-y-4">
+    {% csrf_token %}
+
+    {% if form.errors %}
+    <div class="bg-red-900/50 text-red-300 border border-red-800 rounded-md px-4 py-2 text-sm">
+      Please fix the errors below.
+    </div>
+    {% endif %}
+
+    <div>
+      <label for="id_vendor" class="block text-sm font-medium text-gray-300 mb-1">Vendor</label>
+      {{ form.vendor }}
+      <datalist id="vendor-suggestions">
+        {% for v in vendors_json %}{% endfor %}
+      </datalist>
+    </div>
+
+    <div>
+      <label for="id_description" class="block text-sm font-medium text-gray-300 mb-1">Description</label>
+      {{ form.description }}
+    </div>
+
+    <div>
+      <label for="id_category" class="block text-sm font-medium text-gray-300 mb-1">Category</label>
+      {{ form.category }}
+    </div>
+
+    <div class="grid grid-cols-3 gap-3">
+      <div>
+        <label for="id_subtotal" class="block text-sm font-medium text-gray-300 mb-1">Subtotal</label>
+        <input type="number" name="subtotal" id="id_subtotal" step="0.01" min="0"
+               x-model="subtotal"
+               class="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-sm text-white"
+               placeholder="0.00"
+               value="{{ form.subtotal.value|default:'' }}">
+      </div>
+      <div>
+        <label for="id_tax" class="block text-sm font-medium text-gray-300 mb-1">Tax</label>
+        <input type="number" name="tax" id="id_tax" step="0.01" min="0"
+               x-model="tax"
+               class="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-sm text-white"
+               placeholder="0.00"
+               value="{{ form.tax.value|default:'0' }}">
+      </div>
+      <div>
+        <label for="id_total" class="block text-sm font-medium text-gray-300 mb-1">Total</label>
+        <input type="number" name="total" id="id_total" step="0.01" min="0"
+               :value="computedTotal.toFixed(2)"
+               class="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-sm text-white"
+               placeholder="0.00">
+      </div>
+    </div>
+
+    <div>
+      <label for="id_payment_method" class="block text-sm font-medium text-gray-300 mb-1">Payment Method</label>
+      {{ form.payment_method }}
+    </div>
+
+    <div>
+      <label for="id_date" class="block text-sm font-medium text-gray-300 mb-1">Date</label>
+      {{ form.date }}
+    </div>
+
+    <div>
+      <label for="id_reference" class="block text-sm font-medium text-gray-300 mb-1">Reference</label>
+      {{ form.reference }}
+    </div>
+
+    <div>
+      <label for="id_receipt" class="block text-sm font-medium text-gray-300 mb-1">Receipt</label>
+      <input type="file" name="receipt" id="id_receipt"
+             accept="image/*,.pdf"
+             capture="environment"
+             class="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-sm text-white file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-brand-500 file:text-white hover:file:bg-brand-500/80">
+      <p class="text-xs text-gray-500 mt-1">PDF, PNG, JPG — max 10MB. On mobile, tap to use camera.</p>
+    </div>
+
+    <div>
+      <label for="id_notes" class="block text-sm font-medium text-gray-300 mb-1">Notes</label>
+      {{ form.notes }}
+    </div>
+
+    <div class="flex items-center gap-2">
+      {{ form.is_refund }}
+      <label for="id_is_refund" class="text-sm text-gray-300">This is a refund</label>
+    </div>
+
+    <button type="submit"
+            class="w-full bg-brand-500 hover:bg-brand-500/80 text-white font-medium py-2.5 px-4 rounded-md text-sm transition">
+      Save Expense
+    </button>
+  </form>
+</div>
+
+{{ vendors_json|json_script:"vendor-data" }}
+<script>
+const vendorData = JSON.parse(document.getElementById('vendor-data').textContent);
+const datalist = document.getElementById('vendor-suggestions');
+if (datalist) {
+    vendorData.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        datalist.appendChild(opt);
+    });
+}
+</script>
+{% endblock %}

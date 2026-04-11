@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+
+{% block title %}Spend — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Category badge colors (page-specific) */
+  .cat-software       { background: var(--color-blue-dim);              color: var(--color-blue); }
+  .cat-hardware       { background: rgba(52, 211, 153, 0.15);           color: var(--color-success); }
+  .cat-formation      { background: rgba(251, 191, 36, 0.15);           color: var(--color-warning); }
+  .cat-legal          { background: var(--color-purple-dim);            color: var(--color-purple); }
+  .cat-domains        { background: rgba(6, 182, 212, 0.15);            color: var(--color-info); }
+  .cat-infrastructure { background: rgba(249, 115, 22, 0.15);           color: var(--color-orange); }
+  .cat-default        { background: rgba(100, 116, 139, 0.15);          color: #94A3B8; }
+
+  /* Chart grid responsive */
+  @media (max-width: 767px) {
+    .spend-grid-2 { grid-template-columns: 1fr !important; }
+    .spend-grid-api { grid-template-columns: 1fr !important; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div>
+
+  <!-- ═══════════════════════ PAGE HEADER ═══════════════════════ -->
+  <div class="ncc-page-header">
+    <h1 class="ncc-page-title ncc-gradient-text">Spend Dashboard</h1>
+    <div style="display: flex; align-items: center; gap: var(--space-3);">
+      <a href="{% url 'spend:add-expense' %}" class="ncc-btn ncc-btn-primary ncc-btn-sm">+ Quick Add</a>
+      <a href="{% url 'spend:pnl' %}" class="ncc-btn ncc-btn-ghost ncc-btn-sm">P&L</a>
+      <a href="{% url 'spend:tax' %}" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Tax Prep</a>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ TOP ROW — SUMMARY KPI CARDS ═══════════════════════ -->
+  <div class="ncc-kpi-row">
+    <div class="ncc-kpi-card ncc-stagger">
+      <p class="ncc-kpi-label">Total Spend to Date</p>
+      <p class="ncc-kpi-value">${{ expense_totals.net|floatformat:2 }}</p>
+      <p class="ncc-kpi-sub">net of refunds</p>
+    </div>
+    <div class="ncc-kpi-card ncc-stagger">
+      <p class="ncc-kpi-label">Monthly Burn Rate</p>
+      <p class="ncc-kpi-value" style="color: var(--color-accent);">${{ subs_total|floatformat:2 }}</p>
+      <p class="ncc-kpi-sub">/month subscriptions</p>
+    </div>
+    <div class="ncc-kpi-card ncc-stagger">
+      <p class="ncc-kpi-label">API Spend (MTD)</p>
+      <p class="ncc-kpi-value" style="color: var(--color-accent);">${{ mtd_spend|floatformat:2 }}</p>
+      <p class="ncc-kpi-sub">Anthropic usage</p>
+    </div>
+    <div class="ncc-kpi-card ncc-stagger">
+      <p class="ncc-kpi-label">Tax Paid to Date</p>
+      <p class="ncc-kpi-value" style="color: var(--color-warning);">${{ expense_totals.tax|floatformat:2 }}</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ METRICS ROW ═══════════════════════ -->
+  <div class="ncc-kpi-row">
+    <div class="ncc-kpi-card ncc-stagger" style="padding: var(--space-3);">
+      <p class="ncc-kpi-label">Budget</p>
+      {% if budget %}
+      <p class="text-sm font-medium {% if budget_pct > 80 %}text-danger{% elif budget_pct > 60 %}text-warning{% else %}text-success{% endif %}">
+        {{ budget_pct }}% &mdash; ${{ mtd_spend|floatformat:2 }} / ${{ budget.budget_usd|floatformat:2 }}
+      </p>
+      <div class="ncc-progress" style="margin-top: var(--space-2);">
+        <div class="ncc-progress-fill {% if budget_pct > 80 %}ncc-progress-danger{% endif %}" style="width: {{ budget_pct }}%;"></div>
+      </div>
+      {% else %}
+      <p class="text-sm text-muted">No budget set</p>
+      {% endif %}
+    </div>
+    <div class="ncc-kpi-card ncc-stagger" style="padding: var(--space-3);">
+      <p class="ncc-kpi-label">Projected Month-End</p>
+      <p class="text-sm font-medium text-secondary">${{ projected|floatformat:2 }}</p>
+    </div>
+    <div class="ncc-kpi-card ncc-stagger" style="padding: var(--space-3);">
+      <p class="ncc-kpi-label">Cost per PR</p>
+      <p class="text-sm font-medium text-secondary">{% if cost_per_pr is not None %}${{ cost_per_pr|floatformat:2 }}{% else %}&mdash;{% endif %}</p>
+    </div>
+    <div class="ncc-kpi-card ncc-stagger" style="padding: var(--space-3);">
+      <p class="ncc-kpi-label">Annual Projection (Subs)</p>
+      <p class="text-sm font-medium text-secondary">${{ subs_annual|floatformat:2 }}</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ SECTION 1 — SUBSCRIPTIONS ═══════════════════════ -->
+  <div class="ncc-card ncc-stagger" style="margin-bottom: var(--space-5);">
+    <div class="ncc-card-header">
+      <span class="ncc-card-label">
+        <i data-lucide="repeat" style="width:14px;height:14px;"></i>
+        Monthly Subscriptions
+      </span>
+      <span class="text-xs text-muted">{{ subs|length }} active</span>
+    </div>
+    {% if subs %}
+    <div style="overflow-x: auto;">
+      <table class="ncc-table">
+        <thead>
+          <tr>
+            <th>Vendor</th>
+            <th>Description</th>
+            <th style="text-align: right;">Monthly Cost</th>
+            <th style="text-align: right;">Next Billing</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in subs %}
+          <tr>
+            <td class="text-primary">{{ s.get_provider_display }}</td>
+            <td>{{ s.name }}</td>
+            <td style="text-align: right;" class="text-primary font-medium">${{ s.monthly_cost|floatformat:2 }}</td>
+            <td style="text-align: right;" class="text-muted">{{ s.renewal_date }}</td>
+            <td class="text-muted">{{ s.notes }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2" class="font-semibold uppercase text-muted" style="font-size: 10px; letter-spacing: 0.08em;">Total</td>
+            <td style="text-align: right; color: var(--color-accent);" class="font-bold">${{ subs_total|floatformat:2 }}/mo</td>
+            <td colspan="2" style="text-align: right;" class="text-muted text-xs">${{ subs_annual|floatformat:2 }}/yr</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-xs text-muted" style="text-align: center; padding: var(--space-6) 0;">No subscriptions. Run: python manage.py seed_subscriptions --clear</p>
+    {% endif %}
+  </div>
+
+  <!-- ═══════════════════════ SECTION 2 — EXPENSE LOG ═══════════════════════ -->
+  <div class="ncc-card ncc-stagger" style="margin-bottom: var(--space-5); padding: 0;">
+    <div class="ncc-card-header" style="padding: var(--space-4) var(--space-5); margin-bottom: 0; border-bottom: 1px solid var(--bg-border);">
+      <span class="ncc-card-label">
+        <i data-lucide="receipt" style="width:14px;height:14px;"></i>
+        Expense Log
+      </span>
+      <form method="get" style="display: flex; align-items: center; gap: var(--space-2);">
+        {% if model_filter %}<input type="hidden" name="model" value="{{ model_filter }}">{% endif %}
+        <label for="expense-category-filter" class="sr-only">Expense category</label>
+        <select id="expense-category-filter" name="expense_category" class="ncc-select" style="width: auto; min-height: 28px; font-size: var(--text-xs);" onchange="this.form.submit()">
+          <option value="">All Categories</option>
+          {% for val, label in expense_categories %}
+          <option value="{{ val }}" {% if expense_category == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <label for="expense-payment-filter" class="sr-only">Payment method</label>
+        <select id="expense-payment-filter" name="expense_payment" class="ncc-select" style="width: auto; min-height: 28px; font-size: var(--text-xs);" onchange="this.form.submit()">
+          <option value="">All Payment Methods</option>
+          {% for val, label in expense_payment_methods %}
+          <option value="{{ val }}" {% if expense_payment == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+    <div style="overflow-x: auto;">
+      <table class="ncc-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Vendor</th>
+            <th class="col-sm-hide">Description</th>
+            <th>Category</th>
+            <th style="text-align: right;">Total</th>
+            <th style="text-align: right;" class="col-sm-hide">Tax</th>
+            <th class="col-md-hide">Payment</th>
+            <th style="width: 32px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in expenses %}
+          <tr {% if e.is_refund %}style="background-color: rgba(248, 113, 113, 0.05);"{% endif %}>
+            <td class="text-muted text-xs">{{ e.date }}</td>
+            <td class="text-primary text-xs">{{ e.vendor }}</td>
+            <td class="text-muted text-xs col-sm-hide">{{ e.description|truncatechars:60 }}</td>
+            <td class="text-xs">
+              <span class="ncc-badge {% if e.category == 'software' %}cat-software{% elif e.category == 'hardware' %}cat-hardware{% elif e.category == 'formation' %}cat-formation{% elif e.category == 'legal' %}cat-legal{% elif e.category == 'domains' %}cat-domains{% elif e.category == 'infrastructure' %}cat-infrastructure{% else %}cat-default{% endif %}">{{ e.get_category_display }}</span>
+            </td>
+            <td style="text-align: right;" class="text-xs font-medium {% if e.is_refund %}text-danger{% else %}text-primary{% endif %}">
+              {% if e.is_refund %}-{% endif %}${{ e.total|floatformat:2 }}
+            </td>
+            <td style="text-align: right;" class="text-muted text-xs col-sm-hide">${{ e.tax|floatformat:2 }}</td>
+            <td class="text-muted text-xs col-md-hide">{{ e.get_payment_method_display }}</td>
+            <td style="text-align: center;">
+              {% if e.receipt %}
+              <a href="{{ e.receipt.url }}" target="_blank" title="View receipt: {{ e.receipt_filename }}" class="text-muted" style="transition: color var(--transition-fast);">
+                <i data-lucide="paperclip" style="width:14px;height:14px;"></i>
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-muted" style="text-align: center; padding: var(--space-8) var(--space-4);">
+              {% if has_expense_filters %}No expenses match the current filters.{% else %}No expenses yet. Run: python manage.py seed_expenses{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if expenses %}
+        <tfoot>
+          <tr>
+            <td colspan="4" class="text-muted font-semibold uppercase" style="font-size: 10px; letter-spacing: 0.08em;">
+              {% if has_expense_filters %}Filtered Total{% else %}Net Total{% endif %}
+            </td>
+            <td style="text-align: right;" class="text-primary font-bold">${{ filtered_totals.net|floatformat:2 }}</td>
+            <td style="text-align: right;" class="text-muted text-xs col-sm-hide">${{ filtered_totals.tax|floatformat:2 }}</td>
+            <td class="col-md-hide"></td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ SECTION 3 — CATEGORY & MONTHLY CHARTS ═══════════════════════ -->
+  <div class="spend-grid-2" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-5); margin-bottom: var(--space-5);">
+    <div class="ncc-chart-wrap ncc-stagger">
+      <p class="ncc-chart-title">Spend by Category</p>
+      <div style="height: 280px;" id="categoryChartWrap">
+        <canvas id="categoryChart"></canvas>
+      </div>
+    </div>
+    <div class="ncc-chart-wrap ncc-stagger">
+      <p class="ncc-chart-title">Monthly Spending</p>
+      <div style="height: 280px;" id="monthlyChartWrap">
+        <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ SECTION 4 — PAYMENT METHOD BREAKDOWN ═══════════════════════ -->
+  <div class="ncc-chart-wrap ncc-stagger" style="margin-bottom: var(--space-5);">
+    <p class="ncc-chart-title">Payment Method Breakdown</p>
+    <div style="height: 250px;" id="paymentChartWrap">
+      <canvas id="paymentChart"></canvas>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ SECTION 5 — ANTHROPIC API USAGE ═══════════════════════ -->
+  <div class="spend-grid-api" style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-5); margin-bottom: var(--space-5);">
+    <!-- Daily spend chart -->
+    <div class="ncc-chart-wrap ncc-stagger">
+      <p class="ncc-chart-title">API Daily Spend (30 days)</p>
+      <div style="height: 250px;" id="dailySpendWrap">
+        <canvas id="dailySpendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Model breakdown donut -->
+    <div class="ncc-chart-wrap ncc-stagger">
+      <p class="ncc-chart-title">Model Breakdown (MTD)</p>
+      <div style="height: 250px;" id="modelChartWrap">
+        <canvas id="modelChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ SECTION 6 — API DAILY BREAKDOWN TABLE ═══════════════════════ -->
+  <div class="ncc-card ncc-stagger" style="padding: 0;">
+    <div class="ncc-card-header" style="padding: var(--space-4) var(--space-5); margin-bottom: 0; border-bottom: 1px solid var(--bg-border);">
+      <span class="ncc-card-label">
+        <i data-lucide="activity" style="width:14px;height:14px;"></i>
+        API Daily Breakdown
+      </span>
+      <form method="get" style="display: flex; align-items: center; gap: var(--space-2);">
+        {% if expense_category %}<input type="hidden" name="expense_category" value="{{ expense_category }}">{% endif %}
+        {% if expense_payment %}<input type="hidden" name="expense_payment" value="{{ expense_payment }}">{% endif %}
+        <label for="filter-model" class="sr-only">Model</label>
+        <select id="filter-model" name="model" class="ncc-select" style="width: auto; min-height: 28px; font-size: var(--text-xs);" onchange="this.form.submit()">
+          <option value="">All Models</option>
+          {% for m in models_list %}
+          <option value="{{ m }}" {% if model_filter == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+    <div style="overflow-x: auto;">
+      <table class="ncc-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Model</th>
+            <th style="text-align: right;">Input</th>
+            <th style="text-align: right;">Output</th>
+            <th style="text-align: right;">Cache</th>
+            <th style="text-align: right;">Reqs</th>
+            <th style="text-align: right;">Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in daily_table %}
+          <tr>
+            <td class="text-muted text-xs">{{ r.date }}</td>
+            <td class="text-xs font-mono">{{ r.model|truncatechars:30 }}</td>
+            <td style="text-align: right;" class="text-muted text-xs">{{ r.input_tokens|default:"0" }}</td>
+            <td style="text-align: right;" class="text-muted text-xs">{{ r.output_tokens|default:"0" }}</td>
+            <td style="text-align: right;" class="text-muted text-xs">{{ r.cache_read_tokens|default:"0" }}</td>
+            <td style="text-align: right;" class="text-muted text-xs">{{ r.request_count|default:"0" }}</td>
+            <td style="text-align: right;" class="text-primary text-xs font-medium">${{ r.cost_usd|floatformat:4 }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-muted" style="text-align: center; padding: var(--space-8) var(--space-4);">
+              {% if model_filter %}No API usage matches the current model filter.{% else %}No usage data yet. Run: python manage.py sync_spend{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const dailyData = {{ daily_chart_json|safe }};
+const modelData = {{ model_chart_json|safe }};
+const categoryData = {{ category_chart_json|safe }};
+const paymentData = {{ payment_chart_json|safe }};
+const monthlyData = {{ monthly_chart_json|safe }};
+
+const cssVars = getComputedStyle(document.documentElement);
+const c = (v) => cssVars.getPropertyValue(v).trim();
+const chartColors = [c('--color-blue'), c('--color-purple'), c('--color-warning'), c('--color-danger'), c('--color-success'), c('--color-info'), '#EC4899'];
+const gridColor = 'rgba(30, 30, 46, 0.8)';
+const tickColor = '#64748B';
+const chartDefaults = {
+    color: tickColor,
+    font: { size: 10 },
+};
+
+function showEmpty(wrapId, msg) {
+    const el = document.getElementById(wrapId);
+    if (el) { el.textContent = msg; }
+}
+
+// ──── Category Donut ────
+const catEl = document.getElementById('categoryChart');
+if (categoryData.length > 0 && catEl) {
+    new Chart(catEl, {
+        type: 'doughnut',
+        data: {
+            labels: categoryData.map(d => d.label),
+            datasets: [{
+                data: categoryData.map(d => parseFloat(d.total)),
+                backgroundColor: chartColors.slice(0, categoryData.length),
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { ...chartDefaults, padding: 10 } },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ' ' + ctx.label + ': $' + ctx.parsed.toFixed(2)
+                    }
+                }
+            }
+        }
+    });
+} else {
+    showEmpty('categoryChartWrap', 'No expense data');
+}
+
+// ──── Monthly Bar Chart ────
+const monthEl = document.getElementById('monthlyChart');
+if (monthlyData.length > 0 && monthEl) {
+    new Chart(monthEl, {
+        type: 'bar',
+        data: {
+            labels: monthlyData.map(d => d.month.slice(0, 7)),
+            datasets: [{
+                label: 'Monthly Spend ($)',
+                data: monthlyData.map(d => parseFloat(d.total)),
+                backgroundColor: c('--color-purple') + '99',
+                borderColor: c('--color-purple'),
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: chartDefaults, grid: { color: gridColor } },
+                y: { ticks: { ...chartDefaults, callback: v => '$' + v.toFixed(0) }, grid: { color: gridColor } }
+            }
+        }
+    });
+} else {
+    showEmpty('monthlyChartWrap', 'No expense data');
+}
+
+// ──── Payment Method Horizontal Bar ────
+const pmEl = document.getElementById('paymentChart');
+if (paymentData.length > 0 && pmEl) {
+    new Chart(pmEl, {
+        type: 'bar',
+        data: {
+            labels: paymentData.map(d => d.label),
+            datasets: [{
+                label: 'Total Spend ($)',
+                data: paymentData.map(d => parseFloat(d.total)),
+                backgroundColor: chartColors.slice(0, paymentData.length),
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { ...chartDefaults, callback: v => '$' + v.toFixed(0) }, grid: { color: gridColor } },
+                y: { ticks: chartDefaults, grid: { display: false } }
+            }
+        }
+    });
+} else {
+    showEmpty('paymentChartWrap', 'No expense data');
+}
+
+// ──── API Daily Spend Bar ────
+const dateMap = {};
+dailyData.forEach(d => {
+    if (!dateMap[d.date]) dateMap[d.date] = 0;
+    dateMap[d.date] += parseFloat(d.cost);
+});
+const dates = Object.keys(dateMap).sort();
+const costs = dates.map(d => dateMap[d]);
+
+const dailyEl = document.getElementById('dailySpendChart');
+if (dates.length > 0 && dailyEl) {
+    new Chart(dailyEl, {
+        type: 'bar',
+        data: {
+            labels: dates.map(d => d.slice(5)),
+            datasets: [{
+                label: 'Daily Cost ($)',
+                data: costs,
+                backgroundColor: c('--color-blue') + '99',
+                borderColor: c('--color-blue'),
+                borderWidth: 1,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: tickColor, font: { size: 10 } }, grid: { color: gridColor } },
+                y: { ticks: { color: tickColor, callback: v => '$' + v.toFixed(2) }, grid: { color: gridColor } }
+            }
+        }
+    });
+} else {
+    showEmpty('dailySpendWrap', 'No API data yet');
+}
+
+// ──── Model Breakdown Donut ────
+const modelEl = document.getElementById('modelChart');
+if (modelData.length > 0 && modelEl) {
+    new Chart(modelEl, {
+        type: 'doughnut',
+        data: {
+            labels: modelData.map(d => d.model.split('-').slice(-2).join('-')),
+            datasets: [{
+                data: modelData.map(d => parseFloat(d.cost)),
+                backgroundColor: chartColors.slice(0, modelData.length),
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: tickColor, font: { size: 10 }, padding: 8 } }
+            }
+        }
+    });
+} else {
+    showEmpty('modelChartWrap', 'No API data yet');
+}
+
+// Refresh Lucide icons for dynamic content
+if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+</script>
+{% endblock %}

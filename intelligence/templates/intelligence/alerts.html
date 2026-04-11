@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Predictive Alerts — NockCC{% endblock %}
+
+{% block content %}
+<div style="display: flex; flex-direction: column; gap: var(--space-6);">
+    <!-- Header -->
+    <div class="ncc-page-header">
+        <div>
+            <h1 class="ncc-page-title">Predictive Alerts</h1>
+            <p class="text-xs text-muted" style="margin-top: var(--space-1);">AI-generated alerts checked every 6 hours</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+        <a href="{% url 'intelligence:alerts' %}"
+           class="ncc-btn ncc-btn-sm {% if not selected_category and not selected_severity %}ncc-btn-primary{% else %}ncc-btn-ghost{% endif %}">
+            All
+        </a>
+        {% for val, label in categories %}
+        <a href="?category={{ val }}{% if selected_severity %}&severity={{ selected_severity }}{% endif %}"
+           class="ncc-btn ncc-btn-sm {% if selected_category == val %}ncc-btn-primary{% else %}ncc-btn-ghost{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+        <span class="text-muted" style="display: flex; align-items: center;">|</span>
+        {% for val, label in severities %}
+        <a href="?severity={{ val }}{% if selected_category %}&category={{ selected_category }}{% endif %}"
+           class="ncc-btn ncc-btn-sm {% if selected_severity == val %}ncc-btn-primary{% else %}ncc-btn-ghost{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Active Alerts -->
+    <div>
+        <h2 class="text-sm font-semibold text-secondary" style="margin-bottom: var(--space-3);">
+            Active Alerts
+            {% if active_alerts %}
+            <span class="text-xs text-muted" style="margin-left: var(--space-1); font-weight: 400;">({{ active_alerts|length }})</span>
+            {% endif %}
+        </h2>
+        {% if active_alerts %}
+        <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+            {% for alert in active_alerts %}
+            <div class="ncc-card ncc-stagger" style="display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) var(--space-4);
+                {% if alert.severity == 'critical' %}border-left: 3px solid var(--color-danger);{% elif alert.severity == 'warning' %}border-left: 3px solid var(--color-warning);{% else %}border-left: 3px solid var(--color-info);{% endif %}">
+                <div style="margin-top: 2px;">
+                    {% if alert.severity == 'critical' %}
+                    <span class="ncc-badge ncc-badge-closed" style="width: 24px; height: 24px; border-radius: var(--radius-full); display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-xs); padding: 0;">!</span>
+                    {% elif alert.severity == 'warning' %}
+                    <span class="ncc-badge ncc-badge-review" style="width: 24px; height: 24px; border-radius: var(--radius-full); display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-xs); padding: 0;">!</span>
+                    {% else %}
+                    <span class="ncc-badge ncc-badge-open" style="width: 24px; height: 24px; border-radius: var(--radius-full); display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-xs); padding: 0;">i</span>
+                    {% endif %}
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="display: flex; align-items: center; gap: var(--space-2);">
+                        <p class="text-sm font-medium text-primary">{{ alert.title }}</p>
+                        <span class="ncc-badge ncc-badge-draft">{{ alert.category }}</span>
+                    </div>
+                    <p class="text-xs text-secondary" style="margin-top: var(--space-1);">{{ alert.message }}</p>
+                    <p class="text-muted" style="font-size: 10px; margin-top: var(--space-1);">{{ alert.created_at|timesince }} ago</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="ncc-card" style="padding: var(--space-6); text-align: center;">
+            <p class="text-sm text-muted">No active alerts</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recently Resolved -->
+    {% if resolved_alerts %}
+    <div>
+        <h2 class="text-sm font-semibold text-secondary" style="margin-bottom: var(--space-3);">
+            Recently Resolved
+            <span class="text-xs text-muted" style="margin-left: var(--space-1); font-weight: 400;">({{ resolved_alerts|length }})</span>
+        </h2>
+        <div style="display: flex; flex-direction: column; gap: var(--space-2); opacity: 0.6;">
+            {% for alert in resolved_alerts %}
+            <div class="ncc-card" style="display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) var(--space-4);">
+                <div style="margin-top: 2px;">
+                    <span class="ncc-badge ncc-badge-approved" style="width: 24px; height: 24px; border-radius: var(--radius-full); display: inline-flex; align-items: center; justify-content: center; font-size: var(--text-xs); padding: 0;">&#x2713;</span>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <p class="text-sm text-secondary" style="text-decoration: line-through;">{{ alert.title }}</p>
+                    <p class="text-muted" style="font-size: 10px; margin-top: 2px;">
+                        {{ alert.category }} &middot; resolved {{ alert.resolved_at|timesince }} ago
+                    </p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

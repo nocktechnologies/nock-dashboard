@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}CRM Pipeline — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* CRM Pipeline — page-specific styles not in nockcc.css */
+  .crm-deal-value { color: var(--color-success); font-weight: 600; font-family: var(--font-mono); }
+  .crm-deal-next  { color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--space-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .crm-deal-title { font-weight: 500; color: var(--text-primary); font-size: var(--text-sm); }
+  .crm-deal-contact { color: var(--text-secondary); font-size: var(--text-xs); margin-top: var(--space-1); }
+  .crm-table-value { text-align: right; }
+
+  /* Stage badge colors */
+  .ncc-badge-prospect    { background-color: rgba(100, 116, 139, 0.15); color: var(--text-muted); }
+  .ncc-badge-contacted   { background-color: rgba(6, 182, 212, 0.15); color: var(--color-info); }
+  .ncc-badge-proposal    { background-color: rgba(251, 191, 36, 0.15); color: var(--color-warning); }
+  .ncc-badge-negotiation { background-color: rgba(251, 191, 36, 0.12); color: var(--color-warning); }
+  .ncc-badge-active      { background-color: var(--color-accent-dim); color: var(--color-accent); }
+  .ncc-badge-closed_won  { background-color: rgba(52, 211, 153, 0.15); color: var(--color-success); }
+  .ncc-badge-closed_lost { background-color: rgba(248, 113, 113, 0.15); color: var(--color-danger); }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="ncc-page-header">
+  <h1 class="ncc-page-title">CRM Pipeline</h1>
+  <div style="display:flex; align-items:center; gap:var(--space-3);">
+    <a href="{% url 'crm:deal-create' %}" class="ncc-btn ncc-btn-primary ncc-btn-sm">+ New Deal</a>
+    <a href="{% url 'crm:contacts' %}" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Contacts</a>
+    <div class="ncc-view-toggle">
+      <a href="?view=kanban" class="ncc-tab {% if view_mode == 'kanban' %}active{% endif %}">Kanban</a>
+      <a href="?view=table" class="ncc-tab {% if view_mode == 'table' %}active{% endif %}">Table</a>
+    </div>
+  </div>
+</div>
+
+<!-- KPI Stats -->
+<div class="ncc-kpi-row">
+  <div class="ncc-kpi-card ncc-stagger">
+    <div class="ncc-kpi-label">Open Deals</div>
+    <div class="ncc-kpi-value">{{ total_deals }}</div>
+  </div>
+  <div class="ncc-kpi-card ncc-stagger">
+    <div class="ncc-kpi-label">Pipeline Value</div>
+    <div class="ncc-kpi-value text-success">${{ pipeline_value|floatformat:2 }}</div>
+  </div>
+  <div class="ncc-kpi-card ncc-stagger">
+    <div class="ncc-kpi-label">Win Rate</div>
+    <div class="ncc-kpi-value ncc-gradient-text">{{ win_rate }}%</div>
+  </div>
+  <div class="ncc-kpi-card ncc-stagger">
+    <div class="ncc-kpi-label">Action This Week</div>
+    <div class="ncc-kpi-value {% if action_needed > 0 %}text-warning{% else %}text-muted{% endif %}">{{ action_needed }}</div>
+  </div>
+</div>
+
+{% if view_mode == 'kanban' %}
+<!-- Kanban Board -->
+<div class="ncc-kanban-board">
+  {% for stage in stages %}
+  <div class="ncc-kanban-col ncc-stagger">
+    <div class="ncc-kanban-col-header">
+      <span class="ncc-kanban-col-title">{{ stage.label }}</span>
+      <span class="ncc-kanban-col-count">{{ stage.count }}</span>
+    </div>
+    {% for deal in stage.deals %}
+    <a href="{% url 'crm:deal-detail' deal.pk %}" class="ncc-kanban-card">
+      <div class="crm-deal-title">{{ deal.title }}</div>
+      {% if deal.contact %}
+      <div class="crm-deal-contact">{{ deal.contact.name }}</div>
+      {% endif %}
+      {% if deal.display_value %}
+      <div class="crm-deal-value" style="font-size:var(--text-xs); margin-top:var(--space-1);">${{ deal.display_value|floatformat:2 }}</div>
+      {% endif %}
+      {% if deal.next_action %}
+      <div class="crm-deal-next">Next: {{ deal.next_action }}</div>
+      {% endif %}
+    </a>
+    {% empty %}
+    <div class="ncc-kanban-empty">No deals</div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
+<!-- Table View -->
+<div class="ncc-card">
+  <table class="ncc-table">
+    <thead>
+      <tr>
+        <th>Deal</th>
+        <th>Contact</th>
+        <th>Stage</th>
+        <th>Source</th>
+        <th class="crm-table-value">Value</th>
+        <th>Next Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for deal in deals %}
+      <tr>
+        <td>
+          <a href="{% url 'crm:deal-detail' deal.pk %}" class="crm-deal-title" style="color:var(--color-accent);">{{ deal.title }}</a>
+        </td>
+        <td class="text-muted text-xs">{{ deal.contact.name|default:"—" }}</td>
+        <td>
+          <span class="ncc-badge ncc-badge-{{ deal.stage }}">{{ deal.get_stage_display }}</span>
+        </td>
+        <td class="text-muted text-xs">{{ deal.get_source_display }}</td>
+        <td class="crm-table-value">
+          {% if deal.display_value %}
+          <span class="crm-deal-value" style="font-size:var(--text-xs);">${{ deal.display_value|floatformat:2 }}</span>
+          {% else %}
+          <span class="text-muted">&mdash;</span>
+          {% endif %}
+        </td>
+        <td class="text-muted text-xs">{{ deal.next_action|default:"—"|truncatechars:30 }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="6" class="text-muted" style="text-align:center; padding:var(--space-8) var(--space-4);">
+          No deals yet. Create your first deal.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

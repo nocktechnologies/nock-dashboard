@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Pipeline — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* PR status left accent bars — page-specific, not in nockcc.css */
+  .pr-accent-open    { border-left: 3px solid var(--color-accent); }
+  .pr-accent-merged  { border-left: 3px solid var(--bg-border-hover); }
+  .pr-accent-closed  { border-left: 3px solid var(--text-muted); }
+  .pr-accent-failed  { border-left: 3px solid var(--color-danger); }
+
+  .pipeline-filters { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-6); }
+  .pipeline-filters .ncc-select { width: auto; min-width: 120px; }
+
+  /* Reviewer emoji icons: 🐰 CodeRabbit, 🤖 Copilot, ✨ Gemini, 🟣 Claude, 🧬 Codex, 👤 Human */
+  .reviewer-icons { display: flex; gap: var(--space-1); align-items: center; font-size: var(--text-sm); }
+
+  /* Mobile card list */
+  .pr-card-list { display: flex; flex-direction: column; gap: var(--space-3); }
+
+  @media (max-width: 767px) {
+    .pipeline-filters {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      padding-bottom: var(--space-1);
+    }
+    .pipeline-filters::-webkit-scrollbar { display: none; }
+    .pipeline-filters .ncc-select {
+      flex-shrink: 0;
+      min-height: 40px;
+    }
+    .pipeline-desktop { display: none; }
+    .pipeline-mobile  { display: block; }
+  }
+
+  @media (min-width: 768px) {
+    .pipeline-mobile  { display: none; }
+    .pipeline-desktop { display: block; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="ncc-page-header">
+  <div>
+    <h1 class="ncc-page-title">Pipeline</h1>
+    <p class="text-muted text-sm" style="margin-top:var(--space-1);">{{ prs.count }} PRs tracked</p>
+  </div>
+</div>
+
+<!-- Filters -->
+<form method="get" class="pipeline-filters">
+  <select name="repository" onchange="this.form.submit()" class="ncc-select">
+    <option value="">All repos</option>
+    {% for repo in repos %}
+    <option value="{{ repo.pk }}" {% if filter.form.repository.value|stringformat:"s" == repo.pk|stringformat:"s" %}selected{% endif %}>
+      {{ repo }}
+    </option>
+    {% endfor %}
+  </select>
+
+  <select name="state" onchange="this.form.submit()" class="ncc-select">
+    <option value="">All states</option>
+    <option value="open" {% if filter.form.state.value == 'open' %}selected{% endif %}>Open</option>
+    <option value="merged" {% if filter.form.state.value == 'merged' %}selected{% endif %}>Merged</option>
+    <option value="closed" {% if filter.form.state.value == 'closed' %}selected{% endif %}>Closed</option>
+  </select>
+
+  <select name="ci_status" onchange="this.form.submit()" class="ncc-select">
+    <option value="">All CI</option>
+    <option value="passed" {% if filter.form.ci_status.value == 'passed' %}selected{% endif %}>Passed</option>
+    <option value="failed" {% if filter.form.ci_status.value == 'failed' %}selected{% endif %}>Failed</option>
+    <option value="running" {% if filter.form.ci_status.value == 'running' %}selected{% endif %}>Running</option>
+    <option value="pending" {% if filter.form.ci_status.value == 'pending' %}selected{% endif %}>Pending</option>
+  </select>
+
+  <select name="coderabbit_status" onchange="this.form.submit()" class="ncc-select">
+    <option value="">All CR</option>
+    <option value="approved" {% if filter.form.coderabbit_status.value == 'approved' %}selected{% endif %}>Approved</option>
+    <option value="changes_requested" {% if filter.form.coderabbit_status.value == 'changes_requested' %}selected{% endif %}>Changes Requested</option>
+    <option value="reviewing" {% if filter.form.coderabbit_status.value == 'reviewing' %}selected{% endif %}>Reviewing</option>
+    <option value="pending" {% if filter.form.coderabbit_status.value == 'pending' %}selected{% endif %}>Pending</option>
+    <option value="not_applicable" {% if filter.form.coderabbit_status.value == 'not_applicable' %}selected{% endif %}>Not Applicable</option>
+  </select>
+
+  {% if request.GET %}
+  <a href="/pipeline/" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Clear</a>
+  {% endif %}
+</form>
+
+<!-- Mobile: Card view -->
+<div class="pipeline-mobile">
+  {% if prs %}
+  <div class="pr-card-list">
+    {% for pr in prs %}
+    <a href="/pipeline/{{ pr.repository.owner }}/{{ pr.repository.name }}/{{ pr.number }}/"
+       class="ncc-card ncc-stagger
+       {% if pr.state == 'open' %}pr-accent-open{% elif pr.state == 'merged' %}pr-accent-merged{% else %}pr-accent-closed{% endif %}
+       {% if pr.ci_status == 'failed' and pr.state == 'open' %}pr-accent-failed{% endif %}"
+       style="display:block; text-decoration:none; padding:var(--space-4);">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-2); margin-bottom:var(--space-2);">
+        <div style="min-width:0; flex:1;">
+          <span class="font-mono text-sm" style="color:var(--color-accent);">{{ pr.repository.name }}</span>
+          <span class="font-mono text-sm text-secondary" style="margin-left:var(--space-1);">#{{ pr.number }}</span>
+          <p class="text-sm text-primary" style="line-height:1.4; margin-top:var(--space-1);">{{ pr.title|truncatechars:60 }}</p>
+          {% if pr.generating_agent %}
+          <span class="text-xs text-muted">{{ pr.generating_agent }}</span>
+          {% endif %}
+        </div>
+        <span class="text-xs text-muted" style="flex-shrink:0;">{{ pr.opened_at|timesince }}</span>
+      </div>
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:var(--space-2);">
+        {% if pr.state == 'open' %}
+        <span class="ncc-badge ncc-badge-open">Open</span>
+        {% elif pr.state == 'merged' %}
+        <span class="ncc-badge ncc-badge-merged">Merged</span>
+        {% else %}
+        <span class="ncc-badge ncc-badge-closed">Closed</span>
+        {% endif %}
+        {% if pr.ci_status == 'passed' %}
+        <span class="ncc-badge ncc-badge-approved"><span class="ncc-dot ncc-dot-success"></span> CI Pass</span>
+        {% elif pr.ci_status == 'failed' %}
+        <span class="ncc-badge ncc-badge-closed"><span class="ncc-dot ncc-dot-danger"></span> CI Fail</span>
+        {% elif pr.ci_status == 'running' %}
+        <span class="ncc-badge ncc-badge-review"><span class="ncc-dot ncc-dot-warning ncc-dot-pulse"></span> CI Running</span>
+        {% endif %}
+        {% if pr.coderabbit_status == 'approved' %}
+        <span class="ncc-badge ncc-badge-approved">🐰 Approved</span>
+        {% elif pr.coderabbit_status == 'changes_requested' %}
+        <span class="ncc-badge ncc-badge-review">🐰 Changes</span>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div style="padding:var(--space-12) 0; text-align:center;">
+    <p class="text-sm text-secondary">No pull requests found</p>
+    {% if request.GET %}
+    <a href="/pipeline/" class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="margin-top:var(--space-3); display:inline-flex;">Clear filters</a>
+    {% else %}
+    <p class="text-xs text-muted" style="margin-top:var(--space-2);">PRs appear here once GitHub webhooks start flowing</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Desktop: Table view -->
+<div class="pipeline-desktop">
+  {% if prs %}
+  <div class="ncc-card" style="padding:0; overflow:hidden;">
+    <table class="ncc-table">
+      <thead>
+        <tr>
+          <th>
+            <a href="?{{ query_without_sort }}&sort={% if sort == '-opened_at' %}opened_at{% else %}-opened_at{% endif %}"
+               style="color:inherit;">Repo</a>
+          </th>
+          <th>
+            <a href="?{{ query_without_sort }}&sort={% if sort == 'number' %}-number{% else %}number{% endif %}"
+               style="color:inherit;">#</a>
+          </th>
+          <th>Title</th>
+          <th>Branch</th>
+          <th>Author</th>
+          <th>State</th>
+          <th>Reviewers</th>
+          <th>CI</th>
+          <th>Tests</th>
+          <th>Opened</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pr in prs %}
+        <tr class="ncc-stagger">
+          <td class="font-mono text-xs" style="color:var(--color-accent);">{{ pr.repository.name }}</td>
+          <td class="font-mono text-xs">
+            <a href="/pipeline/{{ pr.repository.owner }}/{{ pr.repository.name }}/{{ pr.number }}/"
+               style="color:var(--text-secondary); transition:color var(--transition-fast);"
+               onmouseover="this.style.color='var(--color-accent)'" onmouseout="this.style.color='var(--text-secondary)'">#{{ pr.number }}</a>
+          </td>
+          <td style="max-width:260px;">
+            <a href="/pipeline/{{ pr.repository.owner }}/{{ pr.repository.name }}/{{ pr.number }}/"
+               style="color:var(--text-primary); display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:color var(--transition-fast);"
+               onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-primary)'">{{ pr.title|truncatechars:50 }}</a>
+            {% if pr.generating_agent %}
+            <span class="text-xs text-muted">{{ pr.generating_agent }}</span>
+            {% endif %}
+          </td>
+          <td class="font-mono text-xs text-secondary">{{ pr.branch|truncatechars:30 }}</td>
+          <td class="text-xs text-secondary">{{ pr.author }}</td>
+          <td>
+            {% if pr.state == 'open' %}
+            <span class="ncc-badge ncc-badge-open">Open</span>
+            {% elif pr.state == 'merged' %}
+            <span class="ncc-badge ncc-badge-merged">Merged</span>
+            {% else %}
+            <span class="ncc-badge ncc-badge-closed">Closed</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="reviewer-icons">
+              {% if pr.coderabbit_status == 'approved' %}
+              <span title="CodeRabbit: Approved" style="cursor:help;">🐰</span>
+              {% elif pr.coderabbit_status == 'changes_requested' %}
+              <span title="CodeRabbit: Changes Requested" style="cursor:help; opacity:0.5;">🐰</span>
+              {% elif pr.coderabbit_status == 'reviewing' %}
+              <span title="CodeRabbit: Reviewing" style="cursor:help; opacity:0.7;">🐰</span>
+              {% elif pr.coderabbit_status == 'not_applicable' %}
+              <span class="text-xs text-muted">—</span>
+              {% else %}
+              <span title="CodeRabbit: Pending" style="cursor:help; opacity:0.3;">🐰</span>
+              {% endif %}
+            </div>
+          </td>
+          <td>
+            {% if pr.ci_status == 'passed' %}
+            <span class="ncc-dot ncc-dot-success" title="CI Passed"></span>
+            {% elif pr.ci_status == 'failed' %}
+            <span class="ncc-dot ncc-dot-danger" title="CI Failed"></span>
+            {% elif pr.ci_status == 'running' %}
+            <span class="ncc-dot ncc-dot-warning ncc-dot-pulse" title="CI Running"></span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-xs">
+            {% if pr.tests_passed is not None %}
+            <span class="text-success">{{ pr.tests_passed }} ok</span>
+            {% endif %}
+            {% if pr.tests_failed %}
+            <span class="text-danger" style="margin-left:var(--space-1);">{{ pr.tests_failed }} fail</span>
+            {% endif %}
+            {% if pr.tests_passed is None and not pr.tests_failed %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-xs text-muted">{{ pr.opened_at|timesince }} ago</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:var(--space-12) 0; text-align:center;">
+    <p class="text-sm text-secondary">No pull requests found</p>
+    {% if request.GET %}
+    <a href="/pipeline/" class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="margin-top:var(--space-3); display:inline-flex;">Clear filters</a>
+    {% else %}
+    <p class="text-xs text-muted" style="margin-top:var(--space-2);">PRs appear here once GitHub webhooks start flowing</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% block title %}Tasks — NockCC{% endblock %}
+
+{% block content %}
+<div class="page-container" x-data="pmTasksAll()" x-init="init()">
+
+  <!-- Header -->
+  <div style="margin-bottom:var(--space-4);">
+    <h1 class="text-xl font-semibold" style="color:var(--text-primary);">Tasks</h1>
+    <p class="text-xs text-muted" style="margin-top:var(--space-1); font-family:var(--font-mono);" x-show="!loading">
+      <span x-text="`${filteredTasks().length} of ${tasks.length} tasks`"></span>
+      · <span x-text="`${overdueCount()} overdue`"></span>
+    </p>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="ncc-card" style="padding:var(--space-3) var(--space-4); margin-bottom:var(--space-4);">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:var(--space-3); align-items:end;">
+      <div>
+        <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Project</label>
+        <select x-model="filters.project" class="ncc-select" style="width:100%;">
+          <option value="">All projects</option>
+          {% for p in projects_for_filter %}
+          <option value="{{ p.slug }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Priority</label>
+        <select x-model="filters.priority" class="ncc-select" style="width:100%;">
+          <option value="">All priorities</option>
+          <option value="urgent">Urgent</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Status</label>
+        <select x-model="filters.status" class="ncc-select" style="width:100%;">
+          <option value="">All statuses</option>
+          <option value="todo">To Do</option>
+          <option value="in_progress">In Progress</option>
+          <option value="blocked">Blocked</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Completion</label>
+        <select x-model="filters.completion" class="ncc-select" style="width:100%;">
+          <option value="open">Open only</option>
+          <option value="all">All</option>
+          <option value="completed">Completed only</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">
+          <input type="checkbox" x-model="filters.overdueOnly" style="margin-right:6px;">
+          Overdue only
+        </label>
+        <button type="button" @click="resetFilters()" class="ncc-btn ncc-btn-sm ncc-btn-ghost" style="width:100%;">
+          Reset
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <template x-if="error">
+    <div class="ncc-alert ncc-alert-error" style="margin-bottom:var(--space-4);" x-text="error"></div>
+  </template>
+
+  <template x-if="loading">
+    <div class="ncc-card" style="text-align:center; padding:var(--space-6);">
+      <div class="text-muted text-sm">Loading…</div>
+    </div>
+  </template>
+
+  <template x-if="!loading && filteredTasks().length === 0">
+    <div class="ncc-card" style="text-align:center; padding:var(--space-8);">
+      <div class="text-muted text-sm">
+        No tasks match the current filters.
+      </div>
+    </div>
+  </template>
+
+  <template x-if="!loading && filteredTasks().length > 0">
+    <div class="ncc-card" style="padding:0; overflow:hidden;">
+      <template x-for="task in filteredTasks()" :key="task.id">
+        <div class="pm-task-row"
+             :class="{ 'pm-task-row-overdue': isOverdue(task) }"
+             style="padding: var(--space-2) var(--space-4);">
+          <button @click.stop="toggleComplete(task)" :disabled="busy[task.id]" class="pm-checkbox"
+                  :style="task.completed ? 'background:var(--color-accent); border-color:var(--color-accent);' : ''"
+                  title="Toggle complete">
+            <i x-show="task.completed" data-lucide="check" style="width:12px; height:12px; color:#000;"></i>
+          </button>
+          <a :href="`/pm/${task.project.slug}/`"
+             class="pm-task-project"
+             :title="task.project.name"
+             x-text="task.project.name"></a>
+          <a :href="`/pm/${task.project.slug}/`"
+             class="pm-task-name"
+             :style="task.completed ? 'text-decoration:line-through; color:var(--text-muted);' : ''"
+             x-text="task.name"
+             style="text-decoration:none;"></a>
+          <span x-show="task.priority" class="pm-badge" :class="'pm-badge-priority-' + task.priority" x-text="task.priority"></span>
+          <span x-show="task.due_date"
+                class="pm-task-due"
+                :class="{ 'pm-task-due-overdue': isOverdue(task) }"
+                x-text="formatDue(task.due_date)"></span>
+          <span x-show="task.assignee" class="pm-task-assignee" x-text="task.assignee"></span>
+          <span x-show="task.status" class="pm-badge" :class="'pm-badge-status-' + task.status" x-text="labelForStatus(task.status)"></span>
+        </div>
+      </template>
+    </div>
+  </template>
+</div>
+
+<style>
+.pm-checkbox {
+  width: 18px; height: 18px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.pm-checkbox:hover:not(:disabled) { border-color: var(--color-accent); }
+.pm-checkbox:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.pm-task-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  border-left: 3px solid transparent;
+  transition: background var(--transition-fast);
+}
+.pm-task-row:last-child { border-bottom: none; }
+.pm-task-row:hover { background: rgba(255, 255, 255, 0.02); }
+.pm-task-row-overdue { border-left-color: #e53e3e; }
+
+.pm-task-project {
+  font-size: 11px;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  text-decoration: none;
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+.pm-task-project:hover { text-decoration: underline; }
+
+.pm-task-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pm-task-name:hover { color: var(--color-accent); }
+
+.pm-task-due {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.pm-task-due-overdue { color: #ff6b6b; font-weight: 600; }
+
+.pm-task-assignee {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+}
+
+.pm-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pm-badge-priority-urgent { background: rgba(229, 62, 62, 0.18); color: #ff6b6b; }
+.pm-badge-priority-high   { background: rgba(237, 137, 54, 0.18); color: #ff9a4a; }
+.pm-badge-priority-medium { background: rgba(236, 201, 75, 0.18); color: #f6d55c; }
+.pm-badge-priority-low    { background: rgba(160, 174, 192, 0.15); color: #a0aec0; }
+.pm-badge-status-todo         { background: rgba(160, 174, 192, 0.15); color: #a0aec0; }
+.pm-badge-status-in_progress  { background: rgba(66, 153, 225, 0.18); color: #63b3ed; }
+.pm-badge-status-blocked      { background: rgba(229, 62, 62, 0.18); color: #ff6b6b; }
+.pm-badge-status-done         { background: rgba(72, 187, 120, 0.18); color: #68d391; }
+
+@media (max-width: 640px) {
+  .pm-task-row { flex-wrap: wrap; padding: var(--space-2); }
+  .pm-task-name { flex-basis: 100%; }
+  .pm-task-project { max-width: 100%; }
+}
+</style>
+
+<script>
+function pmTasksAll() {
+  return {
+    tasks: [],
+    loading: true,
+    error: '',
+    busy: {},
+    filters: {
+      project: '',
+      priority: '',
+      status: '',
+      completion: 'open',
+      overdueOnly: false,
+    },
+
+    async init() {
+      await this.load();
+    },
+
+    getCsrf() {
+      const m = document.cookie.match(/csrftoken=([^;]+)/);
+      return m ? m[1] : '';
+    },
+
+    todayIso() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    },
+
+    isOverdue(task) {
+      return !task.completed && !!task.due_date && task.due_date < this.todayIso();
+    },
+
+    overdueCount() {
+      return this.tasks.filter(t => this.isOverdue(t)).length;
+    },
+
+    formatDue(iso) { return iso ? `due ${iso}` : ''; },
+
+    labelForStatus(s) {
+      return ({ todo: 'To Do', in_progress: 'In Progress', blocked: 'Blocked', done: 'Done' })[s] || s;
+    },
+
+    async load() {
+      this.loading = true;
+      this.error = '';
+      try {
+        // Pull everything sorted by priority. We keep completed tasks in the
+        // raw list so the "All"/"Completed only" filter options work without
+        // a second network round-trip.
+        const resp = await fetch('/api/pm/api/tasks/?ordering=-priority');
+        if (!resp.ok) {
+          this.error = `Failed to load tasks (HTTP ${resp.status})`;
+          this.loading = false;
+          return;
+        }
+        this.tasks = await resp.json();
+      } catch (e) {
+        console.error('Load tasks failed:', e);
+        this.error = 'Network error while loading tasks.';
+      }
+      this.loading = false;
+      this.$nextTick(() => window.lucide && window.lucide.createIcons());
+    },
+
+    filteredTasks() {
+      const today = this.todayIso();
+      return this.tasks.filter(t => {
+        if (this.filters.project && (!t.project || t.project.slug !== this.filters.project)) return false;
+        if (this.filters.priority && t.priority !== this.filters.priority) return false;
+        if (this.filters.status && t.status !== this.filters.status) return false;
+        if (this.filters.completion === 'open' && t.completed) return false;
+        if (this.filters.completion === 'completed' && !t.completed) return false;
+        if (this.filters.overdueOnly) {
+          if (t.completed || !t.due_date || t.due_date >= today) return false;
+        }
+        return true;
+      });
+    },
+
+    resetFilters() {
+      this.filters = {
+        project: '',
+        priority: '',
+        status: '',
+        completion: 'open',
+        overdueOnly: false,
+      };
+    },
+
+    async toggleComplete(task) {
+      if (this.busy[task.id]) return;
+      this.busy[task.id] = true;
+      const endpoint = task.completed ? 'reopen' : 'complete';
+      try {
+        const resp = await fetch(`/api/pm/api/tasks/${task.id}/${endpoint}/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCsrf() },
+          body: '{}',
+        });
+        if (!resp.ok) {
+          this.error = `${endpoint} failed (HTTP ${resp.status})`;
+        } else {
+          const updated = await resp.json();
+          const idx = this.tasks.findIndex(t => t.id === task.id);
+          if (idx !== -1) this.tasks[idx] = updated;
+        }
+      } catch (e) {
+        console.error('Toggle complete failed:', e);
+        this.error = 'Network error while updating the task.';
+      }
+      this.busy[task.id] = false;
+    },
+  };
+}
+</script>
+{% endblock %}

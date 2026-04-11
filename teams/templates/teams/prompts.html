@@ -1,0 +1,401 @@
+{% extends "base.html" %}
+
+{% block title %}Prompt Queue — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  .prompt-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--bg-border);
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+    transition: border-color var(--transition-fast), transform var(--transition-fast);
+    cursor: pointer;
+  }
+  .prompt-card:hover {
+    border-color: var(--bg-border-hover);
+    transform: translateY(-1px);
+  }
+  .complexity-quick { border-left: 3px solid var(--color-success); }
+  .complexity-standard { border-left: 3px solid var(--color-accent); }
+  .complexity-deep { border-left: 3px solid var(--color-info); }
+
+  .complexity-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+  }
+  .complexity-badge.quick { background: rgba(52,211,153,0.1); color: var(--color-success); }
+  .complexity-badge.standard { background: var(--color-accent-dim); color: var(--color-accent); }
+  .complexity-badge.deep { background: rgba(6, 182, 212, 0.1); color: var(--color-info); }
+
+  .priority-bar {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--bg-border);
+    overflow: hidden;
+  }
+  .priority-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width var(--transition-slow);
+  }
+
+  @media (max-width: 767px) {
+    .prompt-card { padding: 14px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="promptLibrary()" x-init="init()">
+
+  <!-- Header -->
+  <div class="ncc-page-header">
+    <div>
+      <h1 class="ncc-page-title">Prompt Queue</h1>
+      <p class="text-muted text-sm" style="margin-top:var(--space-1);">
+        Autonomous agent pipeline — <span x-text="stats.ready + ' ready'"></span> | <span x-text="stats.in_progress + ' executing'"></span> | <span x-text="stats.completed_this_week + ' done this week'"></span>
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button @click="showCreate = true"
+              class="ncc-btn ncc-btn-primary ncc-btn-sm">
+        + New Prompt
+      </button>
+    </div>
+  </div>
+
+  <!-- Search + Filter -->
+  <div class="flex flex-col md:flex-row items-stretch md:items-center gap-3 mb-4">
+    <input type="text" x-model="searchQuery" @input.debounce.300ms="loadPrompts()"
+           placeholder="Search prompts..."
+           class="ncc-input flex-1">
+    <div class="flex flex-wrap gap-1.5">
+      <template x-for="f in filters" :key="f.value">
+        <button class="ncc-tab" :class="{ active: activeFilter === f.value }"
+                @click="activeFilter = f.value; loadPrompts()" x-text="f.label"></button>
+      </template>
+    </div>
+  </div>
+
+  <!-- Prompt Cards Grid -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+    <template x-for="p in prompts" :key="p.slug">
+      <div class="prompt-card" :class="'complexity-' + p.complexity" @click="openDetail(p.slug)" @keydown.enter="openDetail(p.slug)" @keydown.space.prevent="openDetail(p.slug)" tabindex="0" role="button">
+        <div class="flex items-start justify-between gap-2 mb-2">
+          <h3 class="text-[13px] font-medium text-[var(--text-primary)] leading-tight line-clamp-2" x-text="p.title"></h3>
+          <span class="ncc-badge flex-shrink-0"
+                :class="{
+                  'ncc-badge-draft': p.status === 'draft',
+                  'ncc-badge-closed': p.status === 'archived',
+                  'ncc-badge-approved': p.status === 'ready' || p.status === 'completed',
+                  'ncc-badge-open': p.status === 'queued',
+                  'ncc-badge-review': p.status === 'in_progress'
+                }"
+                x-text="p.status.replace('_', ' ')"></span>
+        </div>
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-[11px] text-[var(--text-secondary)] truncate" x-text="p.target_repo.split('/').pop()"></span>
+          <span class="complexity-badge" :class="p.complexity" x-text="p.complexity"></span>
+        </div>
+        <div class="priority-bar mb-2">
+          <div class="priority-fill" :style="'width:' + p.priority + '%; background:' + (p.priority > 75 ? 'var(--color-danger)' : p.priority > 50 ? 'var(--color-warning)' : 'var(--color-accent)')"></div>
+        </div>
+        <div class="flex flex-wrap gap-1 mb-2" x-show="p.tags && p.tags.length > 0">
+          <template x-for="tag in (p.tags || []).slice(0, 4)" :key="tag">
+            <span class="ncc-badge ncc-badge-open" x-text="tag"></span>
+          </template>
+        </div>
+        <div class="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+          <span x-text="p.author"></span>
+          <div class="flex items-center gap-2">
+            <template x-if="p.pr_number">
+              <span class="text-[var(--color-accent)]" x-text="'PR #' + p.pr_number"></span>
+            </template>
+            <span x-text="timeAgo(p.updated_at)"></span>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Empty state -->
+  <template x-if="prompts.length === 0 && !loading">
+    <div class="text-center py-12">
+      <p class="text-[14px] text-[var(--text-secondary)]">No prompts found</p>
+      <p class="text-[12px] text-[var(--text-muted)] mt-1">Create your first prompt to start the autonomous pipeline</p>
+    </div>
+  </template>
+
+  <!-- Detail Modal -->
+  <template x-if="detailPrompt">
+    <div class="ncc-modal-overlay" @click.self="detailPrompt = null">
+      <div class="ncc-modal ncc-modal-lg">
+        <div class="flex items-start justify-between mb-4">
+          <div>
+            <h2 class="text-[16px] font-semibold text-[var(--text-primary)]" x-text="detailPrompt.title"></h2>
+            <div class="flex items-center gap-2 mt-1">
+              <span class="ncc-badge"
+                    :class="{
+                      'ncc-badge-draft': detailPrompt.status === 'draft' || detailPrompt.status === 'archived',
+                      'ncc-badge-approved': detailPrompt.status === 'ready' || detailPrompt.status === 'completed',
+                      'ncc-badge-open': detailPrompt.status === 'queued',
+                      'ncc-badge-review': detailPrompt.status === 'in_progress'
+                    }"
+                    x-text="detailPrompt.status.replace('_', ' ')"></span>
+              <span class="complexity-badge" :class="detailPrompt.complexity" x-text="detailPrompt.complexity"></span>
+              <span class="text-[11px] text-[var(--text-secondary)]" x-text="detailPrompt.target_repo"></span>
+            </div>
+          </div>
+          <button @click="detailPrompt = null" class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[18px]">&times;</button>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-[11px]">
+          <div>
+            <span class="text-[var(--text-muted)]">Author</span>
+            <p class="text-[var(--text-primary)]" x-text="detailPrompt.author"></p>
+          </div>
+          <div>
+            <span class="text-[var(--text-muted)]">Priority</span>
+            <p class="text-[var(--text-primary)]" x-text="detailPrompt.priority + '/100'"></p>
+          </div>
+          <div>
+            <span class="text-[var(--text-muted)]">Est. Time</span>
+            <p class="text-[var(--text-primary)]" x-text="detailPrompt.estimated_minutes + ' min'"></p>
+          </div>
+          <div>
+            <span class="text-[var(--text-muted)]">Branch</span>
+            <p class="text-[var(--text-primary)] font-mono text-[10px]" x-text="detailPrompt.expected_branch"></p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1.5 mb-4" x-show="detailPrompt.tags && detailPrompt.tags.length > 0">
+          <template x-for="tag in detailPrompt.tags" :key="tag">
+            <span class="ncc-badge ncc-badge-open" x-text="tag"></span>
+          </template>
+        </div>
+        <template x-if="detailPrompt.pr_url">
+          <div class="mb-4">
+            <a :href="detailPrompt.pr_url" target="_blank" rel="noopener"
+               class="inline-flex items-center gap-1 text-[12px] text-[var(--color-accent)] hover:underline">
+              PR #<span x-text="detailPrompt.pr_number"></span> &rarr;
+            </a>
+          </div>
+        </template>
+        <div class="mb-4">
+          <span class="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-semibold mb-2 block">Prompt Content</span>
+          <div class="bg-[var(--bg-surface-hover)] rounded-lg p-4 text-[12px] text-[var(--text-primary)] whitespace-pre-wrap font-mono leading-relaxed max-h-[300px] overflow-y-auto"
+               x-text="detailPrompt.content"></div>
+        </div>
+        <template x-if="detailPrompt.depends_on_prompts && detailPrompt.depends_on_prompts.length > 0">
+          <div class="mb-4">
+            <span class="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-semibold mb-2 block">Dependencies</span>
+            <div class="flex flex-wrap gap-1.5">
+              <template x-for="dep in detailPrompt.depends_on_prompts" :key="dep">
+                <span class="ncc-badge ncc-badge-open" x-text="dep"></span>
+              </template>
+            </div>
+          </div>
+        </template>
+        <template x-if="detailPrompt.executions && detailPrompt.executions.length > 0">
+          <div>
+            <span class="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-semibold mb-2 block">Execution History</span>
+            <div class="space-y-2">
+              <template x-for="ex in detailPrompt.executions" :key="ex.id">
+                <div class="bg-[var(--bg-surface-hover)] rounded-lg p-3 text-[12px]">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[var(--text-primary)]" x-text="ex.agent_name"></span>
+                    <span class="ncc-badge"
+                          :class="ex.result === 'success' ? 'ncc-badge-approved' : ex.result === 'failed' ? 'ncc-badge-closed' : 'ncc-badge-review'"
+                          x-text="ex.result || 'running'"></span>
+                  </div>
+                  <div class="flex items-center gap-3 mt-1 text-[10px] text-[var(--text-muted)]">
+                    <span x-text="timeAgo(ex.started_at)"></span>
+                    <template x-if="ex.review_cycles > 0">
+                      <span x-text="ex.review_cycles + '/' + ex.max_review_cycles + ' review cycles'"></span>
+                    </template>
+                    <template x-if="ex.pr_number">
+                      <a :href="ex.pr_url" target="_blank" rel="noopener" class="text-[var(--color-accent)]" x-text="'PR #' + ex.pr_number"></a>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </template>
+
+  <!-- Create Modal -->
+  <template x-if="showCreate">
+    <div class="ncc-modal-overlay" @click.self="showCreate = false">
+      <div class="ncc-modal ncc-modal-lg">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-[16px] font-semibold text-[var(--text-primary)]">New Prompt</h2>
+          <button @click="showCreate = false" class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[18px]">&times;</button>
+        </div>
+        <form @submit.prevent="createPrompt()" class="space-y-3">
+          <div>
+            <label class="text-[11px] text-[var(--text-secondary)] mb-1 block">Title</label>
+            <input type="text" x-model="newPrompt.title" required
+                   class="ncc-input">
+          </div>
+          <div>
+            <label class="text-[11px] text-[var(--text-secondary)] mb-1 block">Target Repo</label>
+            <input type="text" x-model="newPrompt.target_repo" required placeholder="kkwills13/nock-command-center"
+                   class="ncc-input">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[11px] text-[var(--text-secondary)] mb-1 block">Complexity</label>
+              <select x-model="newPrompt.complexity"
+                      class="ncc-select">
+                <option value="quick">Quick Task</option>
+                <option value="standard">Standard Build</option>
+                <option value="deep">Deep Build</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-[11px] text-[var(--text-secondary)] mb-1 block">Priority (1-100)</label>
+              <input type="number" x-model="newPrompt.priority" min="1" max="100"
+                     class="ncc-input">
+            </div>
+          </div>
+          <div>
+            <label class="text-[11px] text-[var(--text-secondary)] mb-1 block">Tags (comma-separated)</label>
+            <input type="text" x-model="newPrompt.tagsStr" placeholder="nockcc, brain, api"
+                   class="ncc-input">
+          </div>
+          <div>
+            <label class="text-[11px] text-[var(--text-secondary)] mb-1 block">Prompt Content (Markdown)</label>
+            <textarea x-model="newPrompt.content" required rows="10"
+                      class="ncc-input font-mono" style="resize:vertical;"></textarea>
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" @click="showCreate = false"
+                    class="ncc-btn ncc-btn-ghost ncc-btn-sm">Cancel</button>
+            <button type="submit" :disabled="creating"
+                    class="ncc-btn ncc-btn-primary ncc-btn-sm disabled:opacity-50">
+              <span x-show="!creating">Create Prompt</span>
+              <span x-show="creating">Creating...</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </template>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function promptLibrary() {
+    return {
+        prompts: [],
+        stats: { total: 0, draft: 0, ready: 0, in_progress: 0, completed_this_week: 0 },
+        loading: false,
+        searchQuery: '',
+        activeFilter: '',
+        showCreate: false,
+        creating: false,
+        detailPrompt: null,
+
+        filters: [
+            { label: 'All', value: '' },
+            { label: 'Draft', value: 'draft' },
+            { label: 'Ready', value: 'ready' },
+            { label: 'Queued', value: 'queued' },
+            { label: 'In Progress', value: 'in_progress' },
+            { label: 'Completed', value: 'completed' },
+            { label: 'Archived', value: 'archived' },
+        ],
+
+        newPrompt: {
+            title: '',
+            content: '',
+            target_repo: 'kkwills13/nock-command-center',
+            complexity: 'standard',
+            priority: 50,
+            tagsStr: '',
+        },
+
+        init() {
+            this.loadPrompts();
+            this.loadStats();
+            setInterval(() => { this.loadPrompts(); this.loadStats(); }, 30000);
+        },
+
+        async loadPrompts() {
+            this.loading = true;
+            try {
+                let url = '/api/prompts/?';
+                if (this.activeFilter) url += 'status=' + this.activeFilter + '&';
+                if (this.searchQuery) url += 'search=' + encodeURIComponent(this.searchQuery) + '&';
+                const resp = await fetch(url);
+                const json = await resp.json();
+                if (json.success) this.prompts = json.data.prompts;
+            } catch(e) { console.error('Load prompts failed:', e); }
+            this.loading = false;
+        },
+
+        async loadStats() {
+            try {
+                const resp = await fetch('/api/prompts/stats/');
+                const json = await resp.json();
+                if (json.success) this.stats = json.data;
+            } catch(e) { /* not critical */ }
+        },
+
+        async openDetail(slug) {
+            try {
+                const resp = await fetch('/api/prompts/' + slug + '/');
+                const json = await resp.json();
+                if (json.success) this.detailPrompt = json.data;
+            } catch(e) { console.error('Load detail failed:', e); }
+        },
+
+        async createPrompt() {
+            this.creating = true;
+            try {
+                const tags = this.newPrompt.tagsStr
+                    ? this.newPrompt.tagsStr.split(',').map(t => t.trim()).filter(Boolean)
+                    : [];
+                const resp = await fetch('/api/prompts/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+                    },
+                    body: JSON.stringify({
+                        title: this.newPrompt.title,
+                        content: this.newPrompt.content,
+                        target_repo: this.newPrompt.target_repo,
+                        complexity: this.newPrompt.complexity,
+                        priority: parseInt(this.newPrompt.priority),
+                        tags: tags,
+                    }),
+                });
+                const json = await resp.json();
+                if (json.success) {
+                    this.showCreate = false;
+                    this.newPrompt = { title: '', content: '', target_repo: 'kkwills13/nock-command-center', complexity: 'standard', priority: 50, tagsStr: '' };
+                    this.loadPrompts();
+                    this.loadStats();
+                }
+            } catch(e) { console.error('Create failed:', e); }
+            this.creating = false;
+        },
+
+        timeAgo(iso) {
+            const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+            if (diff < 60) return 'just now';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            return Math.floor(diff / 86400) + 'd ago';
+        },
+    }
+}
+</script>
+{% endblock %}

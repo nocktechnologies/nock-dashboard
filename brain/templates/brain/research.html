@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Research Library — NockCC{% endblock %}
+
+{% block content %}
+<div class="page-container"
+     x-data="researchBrowser()"
+     x-init="init()">
+
+  <!-- Header -->
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-4); margin-bottom:var(--space-6); flex-wrap:wrap;">
+    <div>
+      <h1 class="text-xl font-semibold" style="color:var(--text-primary);">Research Library</h1>
+      <p class="text-sm text-muted">
+        {{ indexed_documents }} of {{ total_documents }} documents indexed · {{ topics|length }} topics · pgvector semantic search
+      </p>
+    </div>
+    <div class="text-xs text-muted" style="font-family:var(--font-mono);">
+      <span x-show="lastQuery" x-text="`${results.length} results for '${lastQuery}'`"></span>
+    </div>
+  </div>
+
+  <!-- Search bar + filters -->
+  <div class="ncc-card" style="margin-bottom:var(--space-4);">
+    <form @submit.prevent="search()" style="display:flex; gap:var(--space-3); flex-wrap:wrap; align-items:flex-end;">
+      <div style="flex:1; min-width:300px;">
+        <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Query</label>
+        <input type="text"
+               x-model="query"
+               @keydown.enter.prevent="search()"
+               placeholder="Ask a question — e.g. 'reserve methodology for transportation debtors'"
+               class="ncc-input"
+               style="width:100%; font-size:var(--text-base);"
+               :disabled="loading">
+      </div>
+      <div style="min-width:180px;">
+        <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Topic</label>
+        <select x-model="topic" class="ncc-select" style="width:100%;" :disabled="loading">
+          <option value="">All topics</option>
+          {% for t in topics %}
+          <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="min-width:100px;">
+        <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Limit</label>
+        <select x-model.number="limit" class="ncc-select" style="width:100%;" :disabled="loading">
+          <option value="5">5</option>
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+        </select>
+      </div>
+      <button type="submit"
+              :disabled="loading || !query.trim()"
+              class="ncc-btn ncc-btn-sm"
+              style="background:var(--color-accent); color:#000; font-weight:600; min-height:38px;">
+        <span x-show="!loading">Search</span>
+        <span x-show="loading">Searching…</span>
+      </button>
+    </form>
+  </div>
+
+  <!-- Error banner -->
+  <template x-if="error">
+    <div class="ncc-alert ncc-alert-error" style="margin-bottom:var(--space-4);" x-text="error"></div>
+  </template>
+
+  <!-- Results -->
+  <template x-if="!loading && lastQuery && results.length === 0 && !error">
+    <div class="ncc-card" style="text-align:center; padding:var(--space-8);">
+      <div class="text-muted text-sm">No results for that query. Try different phrasing.</div>
+    </div>
+  </template>
+
+  <template x-if="!lastQuery && !loading">
+    <div class="ncc-card" style="text-align:center; padding:var(--space-8);">
+      <div class="text-muted text-sm">
+        Enter a question above to search the research corpus.
+      </div>
+    </div>
+  </template>
+
+  <template x-for="(result, index) in results" :key="`${result.document_slug}-${result.chunk_index}`">
+    <div class="ncc-card" style="margin-bottom:var(--space-3);">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-3); margin-bottom:var(--space-2);">
+        <div style="flex:1; min-width:0;">
+          <div style="display:flex; align-items:center; gap:var(--space-2); margin-bottom:var(--space-1); flex-wrap:wrap;">
+            <span class="brain-pill" x-text="result.topic"></span>
+            <span class="text-xs text-muted" x-text="`${result.source_type} · ${result.word_count}w`"></span>
+            <span class="text-xs" style="color:var(--color-accent); font-family:var(--font-mono);" x-text="`score ${result.score}`"></span>
+          </div>
+          <div class="text-sm font-medium" x-text="result.document_title" style="color:var(--text-primary); margin-bottom:var(--space-1);"></div>
+          <div class="text-xs text-muted" x-show="result.heading" x-text="'§ ' + result.heading" style="margin-bottom:var(--space-2);"></div>
+        </div>
+        <div class="text-xs text-muted" style="font-family:var(--font-mono);" x-text="`#${index + 1}`"></div>
+      </div>
+      <div class="text-xs text-secondary"
+           x-text="result.chunk_content"
+           style="white-space:pre-wrap; line-height:1.5; border-top:1px solid var(--border-subtle); padding-top:var(--space-2); margin-top:var(--space-1);"></div>
+    </div>
+  </template>
+</div>
+
+<script>
+function researchBrowser() {
+  return {
+    query: '',
+    topic: '',
+    limit: 10,
+    results: [],
+    lastQuery: '',
+    loading: false,
+    error: '',
+
+    init() {
+      // If the user landed with ?q=... in the URL, run that search immediately.
+      const urlParams = new URLSearchParams(window.location.search);
+      const initialQuery = urlParams.get('q');
+      if (initialQuery) {
+        this.query = initialQuery;
+        const initialTopic = urlParams.get('topic');
+        if (initialTopic) this.topic = initialTopic;
+        this.search();
+      }
+    },
+
+    async search() {
+      const q = this.query.trim();
+      if (!q) return;
+      this.loading = true;
+      this.error = '';
+      this.results = [];
+
+      const params = new URLSearchParams({ q, limit: this.limit });
+      if (this.topic) params.set('topic', this.topic);
+
+      try {
+        const resp = await fetch(`/api/brain/research/search/?${params}`);
+        const json = await resp.json();
+        if (!resp.ok || !json.success) {
+          this.error = json.message || `Search failed (HTTP ${resp.status})`;
+          this.loading = false;
+          return;
+        }
+        this.results = json.data.results || [];
+        this.lastQuery = q;
+
+        // Reflect query in URL for shareable/bookmarkable searches without
+        // a full navigation.
+        const newUrl = new URL(window.location);
+        newUrl.searchParams.set('q', q);
+        if (this.topic) {
+          newUrl.searchParams.set('topic', this.topic);
+        } else {
+          newUrl.searchParams.delete('topic');
+        }
+        window.history.replaceState({}, '', newUrl);
+      } catch (e) {
+        console.error('Research search failed:', e);
+        this.error = 'Network error — check your connection and try again.';
+      }
+      this.loading = false;
+    },
+  };
+}
+</script>
+{% endblock %}

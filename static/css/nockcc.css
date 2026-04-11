@@ -1,0 +1,1584 @@
+/* ==========================================================================
+   NockCC Design System — nockcc.css
+   Complete design tokens, components, and layout for NockCC UI
+   ========================================================================== */
+
+/* ==========================================================================
+   1. Design Tokens (CSS Custom Properties)
+   ========================================================================== */
+
+:root {
+  /* Backgrounds */
+  --bg-base: #0A0A0F;
+  --bg-surface: #0f0f1a;
+  --bg-surface-hover: #18182a;
+  --bg-border: #1a1a2e;
+  --bg-border-hover: #22223a;
+
+  /* Brand Accent — Emerald (replaces blue-purple) */
+  --color-accent:      #10B981;
+  --color-accent-dark: #059669;
+  --color-accent-dim:  #052e16;
+  --color-accent-glow: rgba(16, 185, 129, 0.08);  /* used by glow-pulse animation (Task 2) */
+  --color-text-accent: #34D399;
+  --color-border-accent: #166534;                  /* used by active border states (Task 2) */
+
+  /* Status Colors */
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
+  --color-danger:  #F87171;
+  --color-info:    #06B6D4;
+
+  /* Extended palette — data viz and external brand colors ONLY.
+     Do NOT use for NockCC UI chrome, navigation, cards, or interactive elements.
+     Use --color-accent, --color-info, --color-warning, etc. for all UI states. */
+  --color-blue:        #3b6fd4;           /* data: software/blue category */
+  --color-blue-dim:    #3b6fd426;         /* blue @ 15% opacity */
+  --color-purple:      #7c5cfc;           /* data: legal category; brand: Gemini */
+  --color-purple-dim:  #7c5cfc26;         /* purple @ 15% opacity */
+  --color-orange:      #F97316;           /* brand: Copilot */
+
+  /* Text Colors */
+  --text-primary:   #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted:     #64748B;
+
+  /* Typography — Geist replaces DM Sans */
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --fw-light:    300;
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
+
+  /* Font Sizes */
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
+  --text-lg:   1.125rem;
+  --text-xl:   1.5rem;
+  --text-2xl:  2rem;
+
+  /* Spacing — 8px base grid */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radius */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.03);
+  --shadow-hover: 0 8px 24px rgba(16, 185, 129, 0.06), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03);
+
+  /* Animation — Emil Kowalski easing curves */
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-fast:    150ms;
+  --dur-default: 200ms;
+  --dur-slow:    350ms;
+
+  /* Transitions (kept for backwards compat with existing usage) */
+  --transition-fast: var(--dur-fast) var(--ease-out);
+  --transition-base: var(--dur-default) var(--ease-out);
+  --transition-slow: var(--dur-slow) var(--ease-out);
+
+  /* Layout */
+  --sidebar-width:     220px;
+  --sidebar-collapsed: 64px;
+}
+
+
+/* ==========================================================================
+   2. Base Resets
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: inherit;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+
+/* ==========================================================================
+   3. Typography Utility Classes
+   ========================================================================== */
+
+.text-xs   { font-size: var(--text-xs); }
+.text-sm   { font-size: var(--text-sm); }
+.text-base { font-size: var(--text-base); }
+.text-lg   { font-size: var(--text-lg); }
+.text-xl   { font-size: var(--text-xl); }
+.text-2xl  { font-size: var(--text-2xl); }
+
+.font-mono     { font-family: var(--font-mono); }
+.font-medium   { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold     { font-weight: 700; }
+
+.text-primary   { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted     { color: var(--text-muted); }
+.text-success   { color: var(--color-success); }
+.text-warning   { color: var(--color-warning); }
+.text-danger    { color: var(--color-danger); }
+
+.uppercase     { text-transform: uppercase; }
+.tracking-wide { letter-spacing: 0.05em; }
+
+.ncc-gradient-text {
+  background: linear-gradient(135deg, var(--color-accent), var(--color-text-accent));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+
+/* ==========================================================================
+   4. Sidebar Layout
+   ========================================================================== */
+
+.ncc-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.ncc-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
+  background-color: var(--bg-surface);
+  border-right: 1px solid var(--bg-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  transition: width var(--transition-slow);
+  overflow: hidden;
+}
+
+.ncc-sidebar.collapsed {
+  width: var(--sidebar-collapsed);
+}
+
+/* Sidebar Header */
+.ncc-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-4);
+  border-bottom: 1px solid var(--bg-border);
+  min-height: 56px;
+}
+
+.ncc-sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow: hidden;
+}
+
+.ncc-sidebar-logo-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: var(--text-sm);
+  color: #fff;
+}
+
+.ncc-sidebar-logo-text {
+  font-weight: 700;
+  font-size: var(--text-base);
+  white-space: nowrap;
+  transition: opacity var(--transition-fast);
+}
+
+.collapsed .ncc-sidebar-logo-text {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+/* Sidebar Nav */
+.ncc-sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3) 0;
+}
+
+.ncc-sidebar-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: var(--space-4) var(--space-4) var(--space-1) var(--space-4);
+  white-space: nowrap;
+  transition: opacity var(--transition-fast);
+}
+
+.collapsed .ncc-sidebar-section-label {
+  opacity: 0;
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Sidebar Item */
+.ncc-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  margin: 1px var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  position: relative;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ncc-sidebar-item:hover {
+    background-color: var(--bg-surface-hover);
+    color: var(--text-primary);
+  }
+}
+
+.ncc-sidebar-item.active {
+  color: var(--color-accent);
+  background-color: var(--color-accent-dim);
+}
+
+.ncc-sidebar-item.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+}
+
+.ncc-sidebar-item-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ncc-sidebar-item-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Collapsed sidebar: hide text, center icons */
+.collapsed .ncc-sidebar-item {
+  justify-content: center;
+  padding: var(--space-2);
+  margin: 1px var(--space-1);
+}
+
+.collapsed .ncc-sidebar-item span:not(.ncc-sidebar-item-icon) {
+  display: none;
+}
+
+.collapsed .ncc-sidebar-item.active::before {
+  left: -4px;
+}
+
+/* Sidebar User */
+.ncc-sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--bg-border);
+  min-height: 56px;
+}
+
+.ncc-sidebar-user-avatar {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: #fff;
+}
+
+.ncc-sidebar-user-info {
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity var(--transition-fast);
+}
+
+.collapsed .ncc-sidebar-user {
+  justify-content: center;
+  padding: var(--space-3) var(--space-1);
+}
+
+.collapsed .ncc-sidebar-user-info {
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+}
+
+/* Main Content */
+.ncc-main {
+  margin-left: var(--sidebar-width);
+  flex: 1;
+  padding: var(--space-6);
+  min-width: 0;
+  transition: margin-left var(--transition-slow);
+}
+
+.collapsed ~ .ncc-main,
+.ncc-sidebar.collapsed + .ncc-main {
+  margin-left: var(--sidebar-collapsed);
+}
+
+
+/* ==========================================================================
+   5. Card Components
+   ========================================================================== */
+
+.ncc-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-card);
+  transition: transform var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ncc-card:hover {
+    transform: translateY(-1px);
+    border-color: var(--bg-border-hover);
+    box-shadow: var(--shadow-hover);
+  }
+}
+
+.ncc-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.ncc-card-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-accent);
+}
+
+.ncc-card-link {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+
+.ncc-card-link:hover {
+  color: var(--color-accent);
+}
+
+.ncc-card-link::after {
+  content: ' \2192';
+}
+
+/* Hero Number Row */
+.ncc-hero-row {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.ncc-hero-number {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  line-height: 1.2;
+}
+
+.ncc-hero-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+
+/* ==========================================================================
+   6. Status Components
+   ========================================================================== */
+
+/* Dot */
+.ncc-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background-color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.ncc-dot-success { background-color: var(--color-success); }
+.ncc-dot-warning { background-color: var(--color-warning); }
+.ncc-dot-danger  { background-color: var(--color-danger); }
+.ncc-dot-info    { background-color: var(--color-info); }
+.ncc-dot-muted   { background-color: var(--text-muted); }
+
+.ncc-dot-pulse {
+  animation: ncc-dot-pulse-anim 2s ease-in-out infinite;
+}
+
+@keyframes ncc-dot-pulse-anim {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+/* Badge */
+.ncc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.ncc-badge-draft {
+  background-color: rgba(100, 116, 139, 0.15);
+  color: var(--text-muted);
+}
+
+.ncc-badge-open {
+  background-color: var(--color-accent-glow);
+  color: var(--color-accent);
+}
+
+.ncc-badge-review {
+  background-color: rgba(251, 191, 36, 0.15);
+  color: var(--color-warning);
+}
+
+.ncc-badge-approved {
+  background-color: rgba(52, 211, 153, 0.15);
+  color: var(--color-success);
+}
+
+.ncc-badge-merged {
+  background-color: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary);
+}
+
+.ncc-badge-closed {
+  background-color: rgba(248, 113, 113, 0.15);
+  color: var(--color-danger);
+}
+
+/* Live Badge */
+.ncc-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background-color: rgba(52, 211, 153, 0.15);
+  color: var(--color-success);
+  animation: ncc-live-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ncc-live-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.7; }
+}
+
+
+/* ==========================================================================
+   7. Button Components
+   ========================================================================== */
+
+.ncc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--transition-fast),
+              border-color var(--transition-fast),
+              color var(--transition-fast),
+              transform var(--dur-fast) var(--ease-out);
+  white-space: nowrap;
+  min-height: 36px;
+}
+
+.ncc-btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ncc-btn-primary:hover {
+    background: var(--color-accent-dark);
+  }
+}
+
+.ncc-btn-primary:active {
+  transform: scale(0.97);
+}
+
+.ncc-btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--bg-border);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ncc-btn-ghost:hover {
+    background-color: var(--bg-surface-hover);
+    border-color: var(--bg-border-hover);
+    color: var(--text-primary);
+  }
+}
+
+.ncc-btn-sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  min-height: 28px;
+}
+
+
+/* ==========================================================================
+   8. Form Components
+   ========================================================================== */
+
+.ncc-input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--bg-base);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  transition: border-color var(--transition-fast);
+  min-height: 36px;
+}
+
+.ncc-input::placeholder {
+  color: var(--text-muted);
+}
+
+.ncc-input:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent-glow);
+}
+
+.ncc-select {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  padding-right: var(--space-8);
+  background-color: var(--bg-base);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  transition: border-color var(--transition-fast);
+  min-height: 36px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748B' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+}
+
+.ncc-select:focus {
+  border-color: var(--color-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent-glow);
+}
+
+
+/* ==========================================================================
+   9. Table Component
+   ========================================================================== */
+
+.ncc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ncc-table th {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--bg-border);
+}
+
+.ncc-table td {
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  border-bottom: 1px solid var(--bg-border);
+  color: var(--text-secondary);
+}
+
+.ncc-table tbody tr {
+  transition: background-color var(--transition-fast);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ncc-table tbody tr:hover {
+    background-color: var(--bg-surface-hover);
+  }
+}
+
+
+/* ==========================================================================
+   10. Utility Components
+   ========================================================================== */
+
+/* Sparkline Container */
+.ncc-sparkline {
+  width: 100%;
+  height: 40px;
+  display: block;
+}
+
+/* Progress Bar */
+.ncc-progress {
+  width: 100%;
+  height: 6px;
+  background-color: var(--bg-border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.ncc-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-accent);
+  transition: width var(--transition-slow);
+}
+
+.ncc-progress-danger .ncc-progress-fill,
+.ncc-progress-fill.ncc-progress-danger {
+  background: linear-gradient(90deg, var(--color-danger), #ef4444);
+}
+
+/* Alert */
+.ncc-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  border: 1px solid;
+}
+
+.ncc-alert-error {
+  background-color: rgba(248, 113, 113, 0.08);
+  border-color: rgba(248, 113, 113, 0.2);
+  color: var(--color-danger);
+}
+
+.ncc-alert-success {
+  background-color: rgba(52, 211, 153, 0.08);
+  border-color: rgba(52, 211, 153, 0.2);
+  color: var(--color-success);
+}
+
+.ncc-alert-warning {
+  background-color: rgba(251, 191, 36, 0.08);
+  border-color: rgba(251, 191, 36, 0.2);
+  color: var(--color-warning);
+}
+
+.ncc-alert-info {
+  background-color: rgba(6, 182, 212, 0.08);
+  border-color: rgba(6, 182, 212, 0.2);
+  color: var(--color-info);
+}
+
+/* Compact Row */
+.ncc-compact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--bg-border);
+  font-size: var(--text-sm);
+}
+
+.ncc-compact-row:last-child {
+  border-bottom: none;
+}
+
+/* Nerve Grid (Dashboard) */
+.ncc-nerve-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+}
+
+/* Page Header */
+.ncc-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.ncc-page-title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+}
+
+
+/* ==========================================================================
+   11. Animations
+   ========================================================================== */
+
+/* Fade In */
+@keyframes ncc-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ncc-stagger {
+  animation: ncc-fade-in var(--transition-slow) ease both;
+}
+
+.ncc-stagger:nth-child(1) { animation-delay: 0ms; }
+.ncc-stagger:nth-child(2) { animation-delay: 60ms; }
+.ncc-stagger:nth-child(3) { animation-delay: 120ms; }
+.ncc-stagger:nth-child(4) { animation-delay: 180ms; }
+.ncc-stagger:nth-child(5) { animation-delay: 240ms; }
+.ncc-stagger:nth-child(6) { animation-delay: 300ms; }
+.ncc-stagger:nth-child(7) { animation-delay: 360ms; }
+.ncc-stagger:nth-child(8) { animation-delay: 420ms; }
+.ncc-stagger:nth-child(9) { animation-delay: 480ms; }
+
+/* Glow Pulse (Active Session) */
+@keyframes ncc-glow-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--color-accent-glow); }
+  50%       { box-shadow: 0 0 16px rgba(16, 185, 129, 0.15); }
+}
+
+.ncc-glow-active {
+  animation: ncc-glow-pulse 3s ease-in-out infinite;
+}
+
+
+/* ==========================================================================
+   11b. Tab Component
+   ========================================================================== */
+
+.ncc-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--bg-border);
+  margin-bottom: var(--space-5);
+}
+
+.ncc-tab {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ncc-tab:hover {
+    color: var(--text-secondary);
+  }
+}
+
+.ncc-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--color-accent);
+}
+
+
+/* ==========================================================================
+   11c. KPI Row
+   ========================================================================== */
+
+.ncc-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.ncc-kpi-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ncc-kpi-card:hover {
+    border-color: var(--bg-border-hover);
+    box-shadow: var(--shadow-hover);
+  }
+}
+
+.ncc-kpi-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.ncc-kpi-value {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.ncc-kpi-sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+/* KPI Row — Tablet */
+@media (max-width: 1200px) {
+  .ncc-kpi-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* KPI Row — Mobile */
+@media (max-width: 767px) {
+  .ncc-kpi-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+}
+
+
+/* ==========================================================================
+   11d. Kanban Board
+   ========================================================================== */
+
+.ncc-kanban-board {
+  display: flex;
+  gap: var(--space-4);
+  overflow-x: auto;
+  padding-bottom: var(--space-3);
+}
+
+.ncc-kanban-col {
+  min-width: 240px;
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ncc-kanban-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--bg-border);
+}
+
+.ncc-kanban-col-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ncc-kanban-col-count {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  background-color: var(--bg-surface-hover);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-full);
+}
+
+.ncc-kanban-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ncc-kanban-card:hover {
+    border-color: var(--bg-border-hover);
+    box-shadow: var(--shadow-hover);
+  }
+}
+
+.ncc-kanban-empty {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+  padding: var(--space-6) var(--space-3);
+  border: 1px dashed var(--bg-border);
+  border-radius: var(--radius-md);
+}
+
+/* Kanban — Mobile: stack columns vertically */
+@media (max-width: 767px) {
+  .ncc-kanban-board {
+    flex-direction: column;
+    overflow-x: visible;
+  }
+
+  .ncc-kanban-col {
+    min-width: 100%;
+    width: 100%;
+  }
+}
+
+
+/* ==========================================================================
+   11e. Toggle Switch
+   ========================================================================== */
+
+.ncc-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.ncc-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.ncc-toggle-track {
+  width: 36px;
+  height: 20px;
+  background-color: var(--bg-border-hover);
+  border-radius: var(--radius-full);
+  position: relative;
+  transition: background var(--transition-fast);
+}
+
+.ncc-toggle input:checked + .ncc-toggle-track {
+  background: var(--color-accent);
+}
+
+.ncc-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background-color: #fff;
+  border-radius: var(--radius-full);
+  transition: transform var(--transition-fast);
+}
+
+.ncc-toggle input:checked + .ncc-toggle-track .ncc-toggle-thumb {
+  transform: translateX(16px);
+}
+
+
+/* ==========================================================================
+   11f. Staleness Indicators
+   ========================================================================== */
+
+.ncc-staleness-fresh {
+  border-left: 3px solid var(--color-success);
+  padding-left: var(--space-3);
+}
+
+.ncc-staleness-stale {
+  border-left: 3px solid var(--color-warning);
+  padding-left: var(--space-3);
+}
+
+.ncc-staleness-critical {
+  border-left: 3px solid var(--color-danger);
+  padding-left: var(--space-3);
+}
+
+
+/* ==========================================================================
+   11g. Chat Components
+   ========================================================================== */
+
+.ncc-chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.ncc-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ncc-chat-bubble {
+  max-width: 75%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.ncc-chat-bubble-user {
+  align-self: flex-end;
+  background: var(--color-accent);
+  color: #fff;
+  border-bottom-right-radius: var(--radius-sm);
+}
+
+.ncc-chat-bubble-assistant {
+  align-self: flex-start;
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.ncc-chat-input-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--bg-border);
+  background-color: var(--bg-surface);
+}
+
+
+/* ==========================================================================
+   11h. View Toggle
+   ========================================================================== */
+
+.ncc-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--bg-base);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.ncc-view-toggle .ncc-tab {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: none;
+  border-radius: var(--radius-full);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ncc-view-toggle .ncc-tab:hover {
+    color: var(--text-secondary);
+  }
+}
+
+.ncc-view-toggle .ncc-tab.active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+
+/* ==========================================================================
+   11i. Filter Bar
+   ========================================================================== */
+
+.ncc-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+/* Filter Bar — Mobile: horizontal scroll */
+@media (max-width: 767px) {
+  .ncc-filter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: var(--space-2);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ncc-filter-bar > * {
+    flex-shrink: 0;
+  }
+}
+
+
+/* ==========================================================================
+   11j. Document Grid
+   ========================================================================== */
+
+.ncc-doc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+/* Document Grid — Tablet */
+@media (max-width: 1200px) {
+  .ncc-doc-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Document Grid — Mobile */
+@media (max-width: 767px) {
+  .ncc-doc-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ==========================================================================
+   11k. Modal
+   ========================================================================== */
+
+.ncc-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: var(--space-4);
+}
+
+.ncc-modal {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  padding: var(--space-6);
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: ncc-fade-in var(--transition-base) ease;
+}
+
+.ncc-modal-sm { width: 100%; max-width: 400px; }
+.ncc-modal-md { width: 100%; max-width: 560px; }
+.ncc-modal-lg { width: 100%; max-width: 720px; }
+.ncc-modal-xl { width: 100%; max-width: 960px; }
+
+.ncc-modal-title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-4);
+}
+
+
+/* ==========================================================================
+   11l. Chart Styling
+   ========================================================================== */
+
+.ncc-chart-wrap {
+  position: relative;
+  width: 100%;
+  padding: var(--space-4);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-lg);
+}
+
+.ncc-chart-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+
+/* ==========================================================================
+   11m. Utility Classes
+   ========================================================================== */
+
+/* Accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Text alignment */
+.text-right { text-align: right; }
+.text-center { text-align: center; }
+
+/* Hover link — use instead of inline onmouseover/onmouseout */
+.ncc-link-hover {
+  color: var(--text-primary);
+  transition: color var(--transition-fast);
+}
+@media (hover: hover) and (pointer: fine) {
+  .ncc-link-hover:hover {
+    color: #fff;
+  }
+}
+
+/* Task priority badges */
+.ncc-badge-priority-high   { background-color: rgba(248, 113, 113, 0.15); color: var(--color-danger); }
+.ncc-badge-priority-medium { background-color: rgba(251, 191, 36, 0.15); color: var(--color-warning); }
+.ncc-badge-priority-low    { background-color: rgba(100, 116, 139, 0.15); color: var(--text-muted); }
+
+/* Responsive column hiding */
+@media (max-width: 639px) {
+  .col-sm-hide { display: none !important; }
+}
+@media (max-width: 767px) {
+  .col-md-hide { display: none !important; }
+}
+
+
+/* ==========================================================================
+   12. Responsive Breakpoints
+   ========================================================================== */
+
+/* Tablet: max-width 1200px */
+@media (max-width: 1200px) {
+  .ncc-nerve-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Mobile: max-width 767px */
+@media (max-width: 767px) {
+  /* Sidebar: hidden by default, slide in on .mobile-open */
+  .ncc-sidebar {
+    transform: translateX(-100%);
+    transition: transform var(--transition-slow);
+    z-index: 200;
+  }
+
+  .ncc-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Backdrop */
+  .ncc-sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    z-index: 150;
+  }
+
+  .ncc-sidebar.mobile-open ~ .ncc-sidebar-backdrop,
+  .ncc-sidebar-backdrop.active {
+    display: block;
+  }
+
+  /* Main content: no sidebar offset */
+  .ncc-main {
+    margin-left: 0;
+    padding: var(--space-4);
+    padding-bottom: calc(56px + var(--space-4));
+  }
+
+  .collapsed ~ .ncc-main,
+  .ncc-sidebar.collapsed + .ncc-main {
+    margin-left: 0;
+  }
+
+  /* Mobile Top Bar */
+  .ncc-mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--bg-border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .ncc-mobile-topbar .spacer {
+    flex: 1;
+  }
+
+  /* Bottom Tab Bar */
+  .ncc-bottom-tabs {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background-color: var(--bg-surface);
+    border-top: 1px solid var(--bg-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 100;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .ncc-bottom-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: var(--space-1);
+    color: var(--text-muted);
+    font-size: 10px;
+    min-width: 44px;
+    min-height: 44px;
+    transition: color var(--transition-fast);
+  }
+
+  .ncc-bottom-tab.active {
+    color: var(--color-accent);
+  }
+
+  /* Nerve grid: 1 column */
+  .ncc-nerve-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Tap targets: 44px minimum */
+  .ncc-sidebar-item,
+  .ncc-btn,
+  .ncc-bottom-tab {
+    min-height: 44px;
+  }
+
+  /* Reduce card/hero sizes */
+  .ncc-card {
+    padding: var(--space-4);
+  }
+
+  .ncc-hero-number {
+    font-size: var(--text-xl);
+  }
+
+  .ncc-hero-row {
+    gap: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  .ncc-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+}
+
+/* Desktop: hide mobile-only elements */
+@media (min-width: 768px) {
+  .ncc-mobile-topbar {
+    display: none;
+  }
+
+  .ncc-bottom-tabs {
+    display: none;
+  }
+
+  .ncc-sidebar-backdrop {
+    display: none !important;
+  }
+}
+
+
+/* ==========================================================================
+   13. Custom Scrollbar
+   ========================================================================== */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-border-hover);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-border-hover) var(--bg-base);
+}
+
+
+/* ==========================================================================
+   Reduced Motion — accessibility
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Keep the pulse dot visible but remove the animation */
+  .ncc-dot-pulse {
+    animation: none;
+    opacity: 1;
+  }
+}

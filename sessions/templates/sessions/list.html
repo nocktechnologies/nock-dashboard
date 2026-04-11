@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block title %}Sessions — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Page-specific: filter bar layout */
+  .sessions-filters {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+  .sessions-filters .ncc-select {
+    width: auto;
+    min-width: 140px;
+  }
+  /* Active sessions horizontal row */
+  .sessions-active-row {
+    display: flex;
+    gap: var(--space-4);
+    overflow-x: auto;
+    padding-bottom: var(--space-2);
+  }
+  .sessions-active-row .ncc-card {
+    min-width: 260px;
+    flex: 0 0 auto;
+  }
+  /* Session card detail rows */
+  .session-detail-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-1) 0;
+    font-size: var(--text-sm);
+  }
+  .session-detail-label {
+    color: var(--text-muted);
+  }
+  .session-detail-value {
+    color: var(--text-primary);
+  }
+  .session-detail-value.mono {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+  }
+  /* Section header for Active Now */
+  .sessions-section-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+  /* Status dot in active card */
+  .session-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+  }
+  /* Mobile card list */
+  .sessions-mobile-cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  /* Clear filter link */
+  .sessions-clear-link {
+    font-size: var(--text-xs);
+    color: var(--text-muted);
+    transition: color var(--transition-fast);
+    padding: var(--space-2);
+    text-align: center;
+  }
+  .sessions-clear-link:hover {
+    color: var(--text-primary);
+  }
+  /* Responsive: stack filters on mobile */
+  @media (max-width: 767px) {
+    .sessions-filters {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: var(--space-2);
+    }
+    .sessions-filters .ncc-select {
+      width: 100%;
+      min-width: 0;
+    }
+    .sessions-filters .ncc-btn {
+      grid-column: span 2;
+    }
+    .sessions-active-row {
+      flex-direction: column;
+    }
+    .sessions-active-row .ncc-card {
+      min-width: 0;
+      width: 100%;
+    }
+    .sessions-desktop-table {
+      display: none;
+    }
+    .sessions-mobile-cards {
+      display: flex;
+    }
+  }
+  @media (min-width: 768px) {
+    .sessions-mobile-cards {
+      display: none;
+    }
+    .sessions-desktop-table {
+      display: block;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div>
+  <!-- Page Header + Filters -->
+  <div class="ncc-page-header" style="flex-wrap: wrap; gap: var(--space-4);">
+    <div>
+      <h1 class="ncc-page-title">Sessions</h1>
+      <p class="text-sm text-secondary" style="margin-top: var(--space-1);">Claude Code session tracking</p>
+    </div>
+    <div style="display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;">
+      <form method="get" class="sessions-filters">
+        <label for="filter-agent" class="sr-only">Agent</label>
+        <select id="filter-agent" name="agent" class="ncc-select">
+          <option value="">All Agents</option>
+          {% for value, label in agent_choices %}
+          <option value="{{ value }}" {% if filters.agent == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <label for="filter-machine" class="sr-only">Machine</label>
+        <select id="filter-machine" name="machine" class="ncc-select">
+          <option value="">All Machines</option>
+          {% for value, label in machine_choices %}
+          <option value="{{ value }}" {% if filters.machine == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <label for="filter-status" class="sr-only">Status</label>
+        <select id="filter-status" name="status" class="ncc-select">
+          <option value="">All Statuses</option>
+          {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="ncc-btn ncc-btn-primary">Filter</button>
+        {% if filters.agent or filters.machine or filters.status %}
+        <a href="/sessions/" class="sessions-clear-link">Clear</a>
+        {% endif %}
+      </form>
+      <button onclick="cleanupStale(this)" class="ncc-btn ncc-btn-ghost">Clean up stale</button>
+    </div>
+  </div>
+
+  <!-- Active Sessions -->
+  {% if active_sessions %}
+  <div style="margin-bottom: var(--space-6);">
+    <div class="sessions-section-header">
+      <span class="ncc-dot ncc-dot-success ncc-dot-pulse"></span>
+      <h2 class="text-xs font-semibold text-success uppercase tracking-wide">Active Now</h2>
+      <span class="text-xs text-secondary">({{ active_sessions|length }})</span>
+    </div>
+    <div class="sessions-active-row">
+      {% for s in active_sessions %}
+      <div class="ncc-card ncc-glow-active ncc-stagger">
+        <div class="session-card-header">
+          <span class="font-medium text-primary">{{ s.get_agent_display }}</span>
+          <span class="ncc-badge ncc-badge-approved">
+            <span class="ncc-dot ncc-dot-success ncc-dot-pulse"></span>
+            Active
+          </span>
+        </div>
+        <div>
+          <div class="session-detail-row">
+            <span class="session-detail-label">Machine</span>
+            <span class="session-detail-value">{{ s.get_machine_display }}</span>
+          </div>
+          {% if s.branch %}
+          <div class="session-detail-row">
+            <span class="session-detail-label">Branch</span>
+            <span class="session-detail-value mono" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ s.branch }}</span>
+          </div>
+          {% endif %}
+          {% if s.repository %}
+          <div class="session-detail-row">
+            <span class="session-detail-label">Repo</span>
+            <span class="session-detail-value">{{ s.repository }}</span>
+          </div>
+          {% endif %}
+          <div class="session-detail-row">
+            <span class="session-detail-label">Duration</span>
+            <span class="session-detail-value">{{ s.started_at|timesince }} ago</span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Mobile: Card view for session history -->
+  <div class="sessions-mobile-cards">
+    {% for s in sessions %}
+    <div class="ncc-card ncc-stagger">
+      <div class="session-card-header">
+        <span class="font-medium text-primary">{{ s.get_agent_display }}</span>
+        <span class="ncc-badge
+          {% if s.status == 'active' %}ncc-badge-approved
+          {% elif s.status == 'completed' %}ncc-badge-open
+          {% elif s.status == 'failed' %}ncc-badge-closed
+          {% elif s.status == 'paused' %}ncc-badge-review
+          {% elif s.status == 'idle' %}ncc-badge-draft
+          {% endif %}">
+          {{ s.get_status_display }}
+        </span>
+      </div>
+      <div>
+        <div class="session-detail-row">
+          <span class="session-detail-label">Machine</span>
+          <span class="session-detail-value">{{ s.get_machine_display }}</span>
+        </div>
+        {% if s.branch %}
+        <div class="session-detail-row">
+          <span class="session-detail-label">Branch</span>
+          <span class="session-detail-value mono" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ s.branch }}</span>
+        </div>
+        {% endif %}
+        {% if s.repository %}
+        <div class="session-detail-row">
+          <span class="session-detail-label">Repo</span>
+          <span class="session-detail-value">{{ s.repository|default:"—" }}</span>
+        </div>
+        {% endif %}
+        <div class="session-detail-row">
+          <span class="session-detail-label">Duration</span>
+          <span class="session-detail-value">
+            {% if s.ended_at %}{{ s.started_at|timesince:s.ended_at }}
+            {% elif s.status == 'active' %}{{ s.started_at|timesince }} (ongoing)
+            {% else %}—{% endif %}
+          </span>
+        </div>
+        <div class="session-detail-row">
+          <span class="session-detail-label">Started</span>
+          <span class="session-detail-value">{{ s.started_at|date:"M d, H:i" }}</span>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div style="padding: var(--space-8) 0; text-align: center; color: var(--text-muted); font-size: var(--text-sm);">No sessions found</div>
+    {% endfor %}
+  </div>
+
+  <!-- Desktop: Table view -->
+  <div class="sessions-desktop-table">
+    <div class="ncc-card" style="padding: 0; overflow: hidden;">
+      <div style="overflow-x: auto;">
+        <table class="ncc-table">
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Machine</th>
+              <th>Agent</th>
+              <th>Start Time</th>
+              <th>Duration</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in sessions %}
+            <tr>
+              <td>
+                <span class="text-primary font-medium">{{ s.repository|default:"—" }}</span>
+                {% if s.branch %}
+                <div class="font-mono text-xs text-muted" style="margin-top: 2px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ s.branch }}</div>
+                {% endif %}
+              </td>
+              <td>{{ s.get_machine_display }}</td>
+              <td class="text-primary">{{ s.get_agent_display }}</td>
+              <td class="text-muted" style="font-size: var(--text-xs);">{{ s.started_at|date:"M d, H:i" }}</td>
+              <td style="font-size: var(--text-xs);">
+                {% if s.ended_at %}
+                  {{ s.started_at|timesince:s.ended_at }}
+                {% elif s.status == 'active' %}
+                  {{ s.started_at|timesince }} (ongoing)
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td>
+                <span class="ncc-badge
+                  {% if s.status == 'active' %}ncc-badge-approved
+                  {% elif s.status == 'completed' %}ncc-badge-open
+                  {% elif s.status == 'failed' %}ncc-badge-closed
+                  {% elif s.status == 'paused' %}ncc-badge-review
+                  {% elif s.status == 'idle' %}ncc-badge-draft
+                  {% endif %}">
+                  {% if s.status == 'active' %}<span class="ncc-dot ncc-dot-success ncc-dot-pulse"></span>{% endif %}
+                  {{ s.get_status_display }}
+                </span>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6" style="text-align: center; padding: var(--space-8); color: var(--text-muted);">No sessions found</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function cleanupStale(btn) {
+  var originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Cleaning...';
+  try {
+    const resp = await fetch('/api/sessions/cleanup/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+      },
+    });
+    const json = await resp.json();
+    if (json.success) {
+      btn.textContent = json.data.cleaned + ' cleaned';
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      btn.textContent = 'Error';
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = originalText; }, 1500);
+    }
+  } catch(e) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = originalText; }, 1500);
+    console.error('Cleanup failed:', e);
+  }
+}
+</script>
+{% endblock %}

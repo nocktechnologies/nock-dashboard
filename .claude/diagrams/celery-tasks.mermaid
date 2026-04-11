@@ -1,0 +1,95 @@
+%% NockCC — Celery Beat Schedule → Tasks → Services → External Calls
+%% Generated 2026-04-07
+
+graph TB
+    BEAT["Celery Beat<br/>(DatabaseScheduler)<br/>America/Denver"]
+
+    subgraph "Every 5 Minutes"
+        BEAT --> SYNC_ASANA["sync_asana_projects<br/><i>tasks.tasks</i>"]
+        SYNC_ASANA -->|"GET projects, tasks, stories"| ASANA_API["Asana API"]
+        SYNC_ASANA -->|"upsert"| ASANA_DB["AsanaProject<br/>AsanaTask"]
+        SYNC_ASANA -->|"fuzzy match"| LINK_PR["link_tasks_to_prs"]
+        LINK_PR --> PR_DB["PullRequest"]
+        SYNC_ASANA -->|"new comments"| NOTIFIER["trigger_event()"]
+        SYNC_ASANA -->|"new comments"| TELE1["Telegram"]
+    end
+
+    subgraph "Every 15 Minutes"
+        BEAT --> SYNC_USAGE["sync_anthropic_usage<br/><i>spend.tasks</i>"]
+        SYNC_USAGE -->|"GET usage + cost reports"| ANTH_API["Anthropic Admin API"]
+        SYNC_USAGE -->|"upsert"| USAGE_DB["UsagePeriod"]
+
+        BEAT --> SW_TICK["smart_watch_tick<br/><i>intelligence.tasks</i>"]
+        SW_TICK -->|"evaluate rules"| SW_RULES["SmartWatchRule"]
+        SW_TICK -->|"create"| SW_EVENTS["SmartWatchEvent"]
+        SW_TICK -->|"send alerts"| TELE2["Telegram"]
+    end
+
+    subgraph "Every 30 Minutes"
+        BEAT --> SYNC_CTX["sync_context_docs_task<br/><i>context.tasks</i>"]
+        SYNC_CTX -->|"GET file contents"| GH_API["GitHub API"]
+        SYNC_CTX -->|"upsert"| CTX_DB["ContextDocument<br/>ContextSnapshot"]
+
+        BEAT --> CLEANUP["cleanup_stale_sessions<br/><i>sessions.tasks</i>"]
+        CLEANUP -->|"mark completed<br/>(inactive >2h)"| SESS_DB["AgentSession"]
+    end
+
+    subgraph "Every Hour"
+        BEAT --> CHECK_BUDGET["check_budget_alerts<br/><i>spend.tasks</i>"]
+        CHECK_BUDGET -->|"select_for_update"| BUDGET_DB["SpendBudget"]
+        CHECK_BUDGET -->|"aggregate"| USAGE_DB2["UsagePeriod"]
+        CHECK_BUDGET -->|"threshold exceeded"| NOTIFIER2["trigger_event()"]
+    end
+
+    subgraph "Every 6 Hours"
+        BEAT --> PRED_ALERTS["check_predictive_alerts<br/><i>intelligence.tasks</i>"]
+        PRED_ALERTS -->|"7 checks:<br/>spend velocity<br/>stale deals<br/>overdue tasks<br/>context staleness<br/>subscription renewals<br/>PR velocity<br/>revenue gap"| MULTI_DB["SpendBudget, UsagePeriod,<br/>Deal, AsanaTask,<br/>ContextDocument,<br/>SubscriptionTracker,<br/>PullRequest, Expense, Revenue"]
+        PRED_ALERTS -->|"create"| ALERT_DB["PredictiveAlert"]
+        PRED_ALERTS -->|"critical"| SLACK1["Slack"]
+    end
+
+    subgraph "Daily"
+        BEAT -->|"3 AM"| BACKFILL["daily_usage_backfill<br/><i>spend.tasks</i>"]
+        BACKFILL -->|"GET yesterday"| ANTH_API
+        BACKFILL -->|"upsert"| USAGE_DB
+
+        BEAT -->|"6 AM"| DAILY_MAINT["daily_maintenance<br/><i>brain.tasks</i>"]
+        DAILY_MAINT -->|"consolidate"| BRAIN_DB["MemoryEntry<br/>ConsolidationLog"]
+        DAILY_MAINT -->|"morning note"| TELE3["Telegram"]
+
+        BEAT -->|"6:30 AM"| GEN_SNAP["generate_business_snapshot<br/><i>intelligence.tasks</i>"]
+        GEN_SNAP -->|"create"| SNAP_DB["BusinessSnapshot"]
+
+        BEAT -->|"9 AM"| DIGEST["send_daily_digest<br/><i>notifications.tasks</i>"]
+        DIGEST -->|"AI summary"| CLAUDE_API["Claude API"]
+        DIGEST -->|"aggregate all"| ALL_DB["PullRequest, AgentSession,<br/>AsanaTask, ContextDocument,<br/>UsagePeriod, SubscriptionTracker,<br/>AgentStatus, PredictiveAlert"]
+        DIGEST -->|"post"| SLACK2["Slack"]
+    end
+
+    subgraph "Weekly"
+        BEAT -->|"Monday 7 AM"| WEEKLY["generate_weekly_memo<br/><i>intelligence.tasks</i>"]
+        WEEKLY -->|"AI generation<br/>(Chief of Staff persona)"| CLAUDE_API
+        WEEKLY -->|"gather data"| WEEKLY_DB["MemoryEntry, PullRequest,<br/>AgentSession, Expense,<br/>Revenue, Deal, AsanaTask,<br/>UsagePeriod, SubscriptionTracker,<br/>PredictiveAlert"]
+        WEEKLY -->|"create"| MEMO_DB["WeeklyMemo"]
+        WEEKLY -->|"save to vault"| VAULT_DB["Document"]
+        WEEKLY -->|"post"| SLACK3["Slack"]
+    end
+
+    subgraph "GitHub Webhook → Celery Tasks"
+        GH_WEBHOOK["/webhooks/github/<br/>GitHubWebhookView"] -->|".delay()"| PR_TASK["process_pull_request_event"]
+        GH_WEBHOOK -->|".delay()"| REVIEW_TASK["process_pull_request_review"]
+        GH_WEBHOOK -->|".delay()"| CHECK_TASK["process_check_run"]
+        GH_WEBHOOK -->|".delay()"| PUSH_TASK["process_push"]
+
+        PR_TASK -->|"create/update"| PR_MODELS["PullRequest, PREvent"]
+        PR_TASK -->|"calls helpers"| TEAM_SIG["teams.signals"]
+        REVIEW_TASK -->|"create"| REVIEW_MODELS["ReviewAlert, PREvent"]
+        REVIEW_TASK -->|"on_commit"| TELE4["Telegram"]
+        CHECK_TASK -->|"update CI"| CI_MODELS["PullRequest.ci_status"]
+        PUSH_TASK -->|"create/update"| BRANCH_MODELS["Branch, BranchEvent"]
+        PUSH_TASK -->|"notify"| TELE5["Telegram"]
+    end
+
+    %% Worker startup
+    WORKER["Celery Worker Start"] -->|"worker_ready signal"| MISSED["check_missed_morning_note"]
+    MISSED -->|"if window passed"| DAILY_MAINT

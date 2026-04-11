@@ -1,0 +1,17 @@
+[build]
+# Force Nixpacks (the older, mature builder) instead of Railpack.
+# Railpack 0.23 had a nasty cache bug on this service: even after
+# three commits (c917d56 → e102efe → a8a7daf), builds kept reading a
+# stale requirements.txt where mcp wasn't listed, then Daphne would
+# crash at boot on `from mcp.server...` → Railway rolled back, /mcp/*
+# stayed 404. Railpack also silently ignored `buildCommand` from
+# railway.toml (it has its own config surface). Nixpacks respects
+# buildCommand and does NOT share Railpack's cache layer, so this
+# bypass is deterministic.
+builder = "NIXPACKS"
+buildCommand = "pip install --no-cache-dir -r requirements.txt"
+
+[deploy]
+startCommand = "bash entrypoint.sh"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

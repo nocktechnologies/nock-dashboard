@@ -1,0 +1,1010 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} — Projects — NockCC{% endblock %}
+
+{% block content %}
+<div class="page-container"
+     x-data="pmProjectDetail('{{ project.slug|escapejs }}')"
+     x-init="init()">
+
+  <!-- Header -->
+  <div style="margin-bottom:var(--space-4);">
+    <a href="{% url 'dashboard:pm' %}" class="text-xs text-muted" style="text-decoration:none;">
+      ← All projects
+    </a>
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--space-4); margin-top:var(--space-2); flex-wrap:wrap;">
+      <div>
+        <h1 class="text-xl font-semibold" style="color:var(--text-primary);">{{ project.name }}</h1>
+        {% if project.description %}
+        <p class="text-sm text-muted" style="margin-top:var(--space-1);">{{ project.description }}</p>
+        {% endif %}
+        <p class="text-xs text-muted" style="margin-top:var(--space-2); font-family:var(--font-mono);" x-show="!loading">
+          <span x-text="`${tasks.length} tasks`"></span> ·
+          <span x-text="`${tasks.filter(t => !t.completed).length} open`"></span> ·
+          <span x-text="`${overdueCount()} overdue`"></span>
+        </p>
+      </div>
+      <div style="display:flex; gap:var(--space-2);">
+        <button @click="showAddSection = !showAddSection; $nextTick(() => { if (showAddSection) $refs.newSectionInput?.focus(); })"
+                class="ncc-btn ncc-btn-sm ncc-btn-ghost">
+          + Add Section
+        </button>
+        <button @click="openNewTask()"
+                class="ncc-btn ncc-btn-sm"
+                style="background:var(--color-accent); color:#000; font-weight:600;">
+          + New Task
+        </button>
+      </div>
+    </div>
+
+    <!-- Inline add-section form -->
+    <template x-if="showAddSection">
+      <form @submit.prevent="createSection()"
+            style="margin-top:var(--space-3); display:flex; gap:var(--space-2); align-items:center;">
+        <input type="text" x-model="newSectionName" x-ref="newSectionInput"
+               placeholder="Section name — hit Enter to create"
+               class="ncc-input" style="flex:1; max-width:400px;" required>
+        <button type="submit" :disabled="sectionSaving || !newSectionName.trim()"
+                class="ncc-btn ncc-btn-sm"
+                style="background:var(--color-accent); color:#000; font-weight:600;">
+          <span x-text="sectionSaving ? 'Adding…' : 'Add'"></span>
+        </button>
+        <button type="button" @click="showAddSection = false; newSectionName = ''; sectionError = ''"
+                class="ncc-btn ncc-btn-sm ncc-btn-ghost">Cancel</button>
+      </form>
+    </template>
+    <template x-if="sectionError">
+      <div class="ncc-alert ncc-alert-error" style="margin-top:var(--space-2);" x-text="sectionError"></div>
+    </template>
+  </div>
+
+  <template x-if="error">
+    <div class="ncc-alert ncc-alert-error" style="margin-bottom:var(--space-4);" x-text="error"></div>
+  </template>
+
+  <template x-if="loading">
+    <div class="ncc-card" style="text-align:center; padding:var(--space-6);">
+      <div class="text-muted text-sm">Loading…</div>
+    </div>
+  </template>
+
+  <!-- Section groups + Unassigned bucket -->
+  <template x-if="!loading && (sections.length > 0 || tasksWithoutSection().length > 0)">
+    <div style="display:flex; flex-direction:column; gap:var(--space-4);">
+
+      <!-- Unassigned bucket -->
+      <template x-if="tasksWithoutSection().length > 0">
+        <div class="ncc-card pm-section-card">
+          <button type="button"
+                  @click="toggleSectionCollapse('unassigned')"
+                  class="pm-section-header">
+            <i :data-lucide="isSectionCollapsed('unassigned') ? 'chevron-right' : 'chevron-down'"
+               style="width:16px; height:16px;"></i>
+            <span class="pm-section-title">Unassigned</span>
+            <span class="pm-section-count" x-text="tasksWithoutSection().length"></span>
+          </button>
+          <template x-if="!isSectionCollapsed('unassigned')">
+            <div class="pm-section-body">
+              <template x-for="task in tasksWithoutSection()" :key="task.id">
+                <div>
+                  <!-- Task row (reused partial via x-html trick is overkill; inline) -->
+                  <div class="pm-task-row"
+                       :class="{ 'pm-task-row-open': expandedTaskId === task.id, 'pm-task-row-overdue': isOverdue(task) }">
+                    <button @click.stop="toggleComplete(task)" :disabled="busy[task.id]" class="pm-checkbox"
+                            :style="task.completed ? 'background:var(--color-accent); border-color:var(--color-accent);' : ''"
+                            title="Toggle complete">
+                      <i x-show="task.completed" data-lucide="check" style="width:12px; height:12px; color:#000;"></i>
+                    </button>
+                    <div class="pm-task-name"
+                         role="button"
+                         :tabindex="inlineEditId === task.id ? -1 : 0"
+                         :aria-expanded="expandedTaskId === task.id"
+                         :aria-label="`Task: ${task.name}. Press Enter to expand, F2 to rename.`"
+                         @click="toggleExpand(task)"
+                         @dblclick.stop="startInlineEdit(task)"
+                         @keydown.enter.self.prevent="toggleExpand(task)"
+                         @keydown.space.self.prevent="toggleExpand(task)"
+                         @keydown.f2.self.prevent="startInlineEdit(task)"
+                         :style="task.completed ? 'text-decoration:line-through; color:var(--text-muted);' : ''">
+                      <template x-if="inlineEditId !== task.id">
+                        <span x-text="task.name"></span>
+                      </template>
+                      <template x-if="inlineEditId === task.id">
+                        <input type="text" x-model="inlineEditName"
+                               @keydown.enter.prevent="saveInlineEdit(task)"
+                               @keydown.escape="cancelInlineEdit()"
+                               @blur="saveInlineEdit(task)"
+                               @click.stop
+                               class="ncc-input" style="width:100%; font-size:13px;"
+                               x-init="$el.focus(); $el.select()">
+                      </template>
+                    </div>
+                    <span x-show="task.priority" class="pm-badge" :class="'pm-badge-priority-' + task.priority" x-text="task.priority"></span>
+                    <span x-show="task.due_date"
+                          class="pm-task-due"
+                          :class="{ 'pm-task-due-overdue': isOverdue(task) }"
+                          x-text="formatDue(task.due_date)"></span>
+                    <span x-show="task.assignee" class="pm-task-assignee" x-text="task.assignee"></span>
+                    <span x-show="task.status" class="pm-badge" :class="'pm-badge-status-' + task.status" x-text="labelForStatus(task.status)"></span>
+                  </div>
+                  <template x-if="expandedTaskId === task.id">
+                    <div class="pm-detail-panel">
+                      <template x-if="detailLoading[task.id]">
+                        <div class="text-muted text-sm">Loading detail…</div>
+                      </template>
+                      <template x-if="!detailLoading[task.id] && detailError[task.id] && !detailCache[task.id]">
+                        <div>
+                          <div class="ncc-alert ncc-alert-error" x-text="detailError[task.id]"></div>
+                          <div class="pm-detail-actions">
+                            <button type="button" @click="retryDetail(task.id)" class="ncc-btn ncc-btn-sm ncc-btn-ghost">Retry</button>
+                            <button type="button" @click="closeDetail()" class="ncc-btn ncc-btn-sm ncc-btn-ghost">Close</button>
+                          </div>
+                        </div>
+                      </template>
+                      <template x-if="!detailLoading[task.id] && detailCache[task.id]">
+                        <div>
+                          <div class="pm-detail-grid">
+                            <div class="pm-detail-field pm-detail-field-full">
+                              <label>Name</label>
+                              <input type="text" x-model="detailCache[task.id].name" class="ncc-input">
+                            </div>
+                            <div class="pm-detail-field pm-detail-field-full">
+                              <label>Description</label>
+                              <textarea x-model="detailCache[task.id].description" class="ncc-input" rows="4"></textarea>
+                            </div>
+                            <div class="pm-detail-field">
+                              <label>Priority</label>
+                              <select x-model="detailCache[task.id].priority" class="ncc-select">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="urgent">Urgent</option>
+                              </select>
+                            </div>
+                            <div class="pm-detail-field">
+                              <label>Status</label>
+                              <select x-model="detailCache[task.id].status" class="ncc-select">
+                                <option value="todo">To Do</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="blocked">Blocked</option>
+                                <option value="done">Done</option>
+                              </select>
+                            </div>
+                            <div class="pm-detail-field">
+                              <label>Due date</label>
+                              <input type="date" x-model="detailCache[task.id].due_date" class="ncc-input">
+                            </div>
+                            <div class="pm-detail-field">
+                              <label>Assignee</label>
+                              <input type="text" x-model="detailCache[task.id].assignee" class="ncc-input">
+                            </div>
+                            <div class="pm-detail-field">
+                              <label>Section</label>
+                              <select x-model="detailCache[task.id]._section_id" class="ncc-select">
+                                <option value="">No section</option>
+                                <template x-for="s in sections" :key="s.id">
+                                  <option :value="String(s.id)" x-text="s.name"></option>
+                                </template>
+                              </select>
+                            </div>
+                            <div class="pm-detail-field pm-detail-field-full">
+                              <label>Tags (comma separated)</label>
+                              <input type="text" x-model="detailCache[task.id]._tags_str" class="ncc-input">
+                            </div>
+                          </div>
+                          <template x-if="detailError[task.id]">
+                            <div class="ncc-alert ncc-alert-error" style="margin-top:var(--space-3);" x-text="detailError[task.id]"></div>
+                          </template>
+                          <div class="pm-detail-actions">
+                            <button type="button" @click="saveDetail(task.id)" :disabled="busy[task.id]"
+                                    class="ncc-btn ncc-btn-sm"
+                                    style="background:var(--color-accent); color:#000; font-weight:600;">
+                              <span x-text="busy[task.id] ? 'Saving…' : 'Save'"></span>
+                            </button>
+                            <button type="button" @click="toggleComplete(task)" :disabled="busy[task.id]"
+                                    class="ncc-btn ncc-btn-sm ncc-btn-ghost"
+                                    x-text="task.completed ? 'Reopen' : 'Complete'"></button>
+                            <button type="button" @click="deleteTask(task.id)" :disabled="busy[task.id]"
+                                    class="ncc-btn ncc-btn-sm"
+                                    style="background:var(--color-danger, #e53e3e); color:#fff;">Delete</button>
+                            <button type="button" @click="closeDetail()" class="ncc-btn ncc-btn-sm ncc-btn-ghost">Close</button>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <!-- Section cards -->
+      <template x-for="section in sections" :key="section.id">
+        <div class="ncc-card pm-section-card">
+          <button type="button"
+                  @click="toggleSectionCollapse(section.id)"
+                  class="pm-section-header">
+            <i :data-lucide="isSectionCollapsed(section.id) ? 'chevron-right' : 'chevron-down'"
+               style="width:16px; height:16px;"></i>
+            <span class="pm-section-title" x-text="section.name"></span>
+            <span class="pm-section-count" x-text="tasksInSection(section.id).length"></span>
+          </button>
+          <template x-if="!isSectionCollapsed(section.id)">
+            <div class="pm-section-body">
+              <template x-if="tasksInSection(section.id).length === 0">
+                <div class="text-xs text-muted" style="padding:var(--space-2) 0; font-style:italic;">Empty</div>
+              </template>
+              <template x-for="task in tasksInSection(section.id)" :key="task.id">
+                <div>
+                  <div class="pm-task-row"
+                       :class="{ 'pm-task-row-open': expandedTaskId === task.id, 'pm-task-row-overdue': isOverdue(task) }">
+                    <button @click.stop="toggleComplete(task)" :disabled="busy[task.id]" class="pm-checkbox"
+                            :style="task.completed ? 'background:var(--color-accent); border-color:var(--color-accent);' : ''"
+                            title="Toggle complete">
+                      <i x-show="task.completed" data-lucide="check" style="width:12px; height:12px; color:#000;"></i>
+                    </button>
+                    <div class="pm-task-name"
+                         role="button"
+                         :tabindex="inlineEditId === task.id ? -1 : 0"
+                         :aria-expanded="expandedTaskId === task.id"
+                         :aria-label="`Task: ${task.name}. Press Enter to expand, F2 to rename.`"
+                         @click="toggleExpand(task)"
+                         @dblclick.stop="startInlineEdit(task)"
+                         @keydown.enter.self.prevent="toggleExpand(task)"
+                         @keydown.space.self.prevent="toggleExpand(task)"
+                         @keydown.f2.self.prevent="startInlineEdit(task)"
+                         :style="task.completed ? 'text-decoration:line-through; color:var(--text-muted);' : ''">
+                      <template x-if="inlineEditId !== task.id">
+                        <span x-text="task.name"></span>
+                      </template>
+                      <template x-if="inlineEditId === task.id">
+                        <input type="text" x-model="inlineEditName"
+                               @keydown.enter.prevent="saveInlineEdit(task)"
+                               @keydown.escape="cancelInlineEdit()"
+                               @blur="saveInlineEdit(task)"
+                               @click.stop
+                               class="ncc-input" style="width:100%; font-size:13px;"
+                               x-init="$el.focus(); $el.select()">
+                      </template>
+                    </div>
+                    <span x-show="task.priority" class="pm-badge" :class="'pm-badge-priority-' + task.priority" x-text="task.priority"></span>
+                    <span x-show="task.due_date"
+                          class="pm-task-due"
+                          :class="{ 'pm-task-due-overdue': isOverdue(task) }"
+                          x-text="formatDue(task.due_date)"></span>
+                    <span x-show="task.assignee" class="pm-task-assignee" x-text="task.assignee"></span>
+                    <span x-show="task.status" class="pm-badge" :class="'pm-badge-status-' + task.status" x-text="labelForStatus(task.status)"></span>
+                  </div>
+                  <template x-if="expandedTaskId === task.id">
+                    <div class="pm-detail-panel">
+                      <template x-if="detailLoading[task.id]">
+                        <div class="text-muted text-sm">Loading detail…</div>
+                      </template>
+                      <template x-if="!detailLoading[task.id] && detailError[task.id] && !detailCache[task.id]">
+                        <div>
+                          <div class="ncc-alert ncc-alert-error" x-text="detailError[task.id]"></div>
+                          <div class="pm-detail-actions">
+                            <button type="button" @click="retryDetail(task.id)" class="ncc-btn ncc-btn-sm ncc-btn-ghost">Retry</button>
+                            <button type="button" @click="closeDetail()" class="ncc-btn ncc-btn-sm ncc-btn-ghost">Close</button>
+                          </div>
+                        </div>
+                      </template>
+                      <template x-if="!detailLoading[task.id] && detailCache[task.id]">
+                        <div>
+                          <div class="pm-detail-grid">
+                            <div class="pm-detail-field pm-detail-field-full">
+                              <label>Name</label>
+                              <input type="text" x-model="detailCache[task.id].name" class="ncc-input">
+                            </div>
+                            <div class="pm-detail-field pm-detail-field-full">
+                              <label>Description</label>
+                              <textarea x-model="detailCache[task.id].description" class="ncc-input" rows="4"></textarea>
+                            </div>
+                            <div class="pm-detail-field">
+                              <label>Priority</label>
+                              <select x-model="detailCache[task.id].priority" class="ncc-select">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="urgent">Urgent</option>
+                              </select>
+                            </div>
+                            <div class="pm-detail-field">
+                              <label>Status</label>
+                              <select x-model="detailCache[task.id].status" class="ncc-select">
+                                <option value="todo">To Do</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="blocked">Blocked</option>
+                                <option value="done">Done</option>
+                              </select>
+                            </div>
+                            <div class="pm-detail-field">
+                              <label>Due date</label>
+                              <input type="date" x-model="detailCache[task.id].due_date" class="ncc-input">
+                            </div>
+                            <div class="pm-detail-field">
+                              <label>Assignee</label>
+                              <input type="text" x-model="detailCache[task.id].assignee" class="ncc-input">
+                            </div>
+                            <div class="pm-detail-field">
+                              <label>Section</label>
+                              <select x-model="detailCache[task.id]._section_id" class="ncc-select">
+                                <option value="">No section</option>
+                                <template x-for="s in sections" :key="s.id">
+                                  <option :value="String(s.id)" x-text="s.name"></option>
+                                </template>
+                              </select>
+                            </div>
+                            <div class="pm-detail-field pm-detail-field-full">
+                              <label>Tags (comma separated)</label>
+                              <input type="text" x-model="detailCache[task.id]._tags_str" class="ncc-input">
+                            </div>
+                          </div>
+                          <template x-if="detailError[task.id]">
+                            <div class="ncc-alert ncc-alert-error" style="margin-top:var(--space-3);" x-text="detailError[task.id]"></div>
+                          </template>
+                          <div class="pm-detail-actions">
+                            <button type="button" @click="saveDetail(task.id)" :disabled="busy[task.id]"
+                                    class="ncc-btn ncc-btn-sm"
+                                    style="background:var(--color-accent); color:#000; font-weight:600;">
+                              <span x-text="busy[task.id] ? 'Saving…' : 'Save'"></span>
+                            </button>
+                            <button type="button" @click="toggleComplete(task)" :disabled="busy[task.id]"
+                                    class="ncc-btn ncc-btn-sm ncc-btn-ghost"
+                                    x-text="task.completed ? 'Reopen' : 'Complete'"></button>
+                            <button type="button" @click="deleteTask(task.id)" :disabled="busy[task.id]"
+                                    class="ncc-btn ncc-btn-sm"
+                                    style="background:var(--color-danger, #e53e3e); color:#fff;">Delete</button>
+                            <button type="button" @click="closeDetail()" class="ncc-btn ncc-btn-sm ncc-btn-ghost">Close</button>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <template x-if="!loading && sections.length === 0 && tasks.length === 0">
+    <div class="ncc-card" style="text-align:center; padding:var(--space-8);">
+      <div class="text-muted text-sm" style="margin-bottom:var(--space-3);">
+        No tasks yet. Create one to get started.
+      </div>
+      <button @click="openNewTask()"
+              class="ncc-btn ncc-btn-sm"
+              style="background:var(--color-accent); color:#000; font-weight:600;">
+        + New Task
+      </button>
+    </div>
+  </template>
+
+  <!-- New task modal -->
+  <template x-if="showNewTask">
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:50; padding:var(--space-4);"
+         @click.self="closeNewTask()">
+      <div class="ncc-card" style="width:100%; max-width:560px; background:var(--bg-surface); max-height:90vh; overflow-y:auto;">
+        <h2 class="text-base font-semibold" style="color:var(--text-primary); margin-bottom:var(--space-4);">New Task</h2>
+        <form @submit.prevent="createTask()">
+          <div style="margin-bottom:var(--space-3);">
+            <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Name</label>
+            <input type="text" x-model="newTask.name" class="ncc-input" style="width:100%;" required autofocus>
+          </div>
+          <div style="margin-bottom:var(--space-3);">
+            <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Description</label>
+            <textarea x-model="newTask.description" class="ncc-input" style="width:100%;" rows="3" placeholder="Optional details, notes, context…"></textarea>
+          </div>
+          <div style="margin-bottom:var(--space-3);">
+            <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Section</label>
+            <select x-model="newTask.section_id" class="ncc-select" style="width:100%;">
+              <option value="">No section</option>
+              <template x-for="s in sections" :key="s.id">
+                <option :value="s.id" x-text="s.name"></option>
+              </template>
+            </select>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3); margin-bottom:var(--space-3);">
+            <div>
+              <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Priority</label>
+              <select x-model="newTask.priority" class="ncc-select" style="width:100%;">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Status</label>
+              <select x-model="newTask.status" class="ncc-select" style="width:100%;">
+                <option value="todo">To Do</option>
+                <option value="in_progress">In Progress</option>
+                <option value="blocked">Blocked</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-3); margin-bottom:var(--space-3);">
+            <div>
+              <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Due date</label>
+              <input type="date" x-model="newTask.due_date" class="ncc-input" style="width:100%;">
+            </div>
+            <div>
+              <label class="text-xs text-muted" style="display:block; margin-bottom:var(--space-1);">Assignee</label>
+              <input type="text" x-model="newTask.assignee" class="ncc-input" style="width:100%;" placeholder="e.g. mara">
+            </div>
+          </div>
+          <template x-if="createError">
+            <div class="ncc-alert ncc-alert-error" style="margin-bottom:var(--space-3);" x-text="createError"></div>
+          </template>
+          <div style="display:flex; gap:var(--space-2); justify-content:flex-end;">
+            <button type="button" @click="closeNewTask()" class="ncc-btn ncc-btn-sm ncc-btn-ghost">Cancel</button>
+            <button type="submit" :disabled="saving" class="ncc-btn ncc-btn-sm"
+                    style="background:var(--color-accent); color:#000; font-weight:600;">
+              <span x-text="saving ? 'Creating…' : 'Create Task'"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </template>
+</div>
+
+<style>
+.pm-checkbox {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.pm-checkbox:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+.pm-checkbox:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pm-section-card {
+  padding: 0 !important;
+  overflow: hidden;
+}
+.pm-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  color: var(--text-primary);
+  text-align: left;
+  font-family: inherit;
+}
+.pm-section-header:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+.pm-section-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.pm-section-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-md);
+}
+.pm-section-body {
+  padding: var(--space-2) var(--space-4) var(--space-3) var(--space-4);
+}
+
+.pm-task-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+  border-left: 3px solid transparent;
+}
+.pm-task-row:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+.pm-task-row:last-child {
+  border-bottom: none;
+}
+.pm-task-row-open {
+  background: rgba(255, 255, 255, 0.03);
+}
+.pm-task-row-overdue {
+  border-left-color: #e53e3e;
+}
+.pm-task-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pm-task-due {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.pm-task-due-overdue {
+  color: #ff6b6b;
+  font-weight: 600;
+}
+.pm-task-assignee {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+}
+
+.pm-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pm-badge-priority-urgent { background: rgba(229, 62, 62, 0.18); color: #ff6b6b; }
+.pm-badge-priority-high   { background: rgba(237, 137, 54, 0.18); color: #ff9a4a; }
+.pm-badge-priority-medium { background: rgba(236, 201, 75, 0.18); color: #f6d55c; }
+.pm-badge-priority-low    { background: rgba(160, 174, 192, 0.15); color: #a0aec0; }
+.pm-badge-status-todo         { background: rgba(160, 174, 192, 0.15); color: #a0aec0; }
+.pm-badge-status-in_progress  { background: rgba(66, 153, 225, 0.18); color: #63b3ed; }
+.pm-badge-status-blocked      { background: rgba(229, 62, 62, 0.18); color: #ff6b6b; }
+.pm-badge-status-done         { background: rgba(72, 187, 120, 0.18); color: #68d391; }
+
+.pm-detail-panel {
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--color-accent);
+}
+.pm-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.pm-detail-field {
+  display: flex;
+  flex-direction: column;
+}
+.pm-detail-field label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-1);
+}
+.pm-detail-field-full {
+  grid-column: 1 / -1;
+}
+.pm-detail-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .pm-detail-grid { grid-template-columns: 1fr; }
+  .pm-task-row { flex-wrap: wrap; }
+  .pm-task-name { flex-basis: 100%; }
+}
+</style>
+
+<script>
+function pmProjectDetail(slug) {
+  return {
+    slug: slug,
+    project: null,
+    sections: [],
+    tasks: [],
+    loading: true,
+    error: '',
+    busy: {},
+
+    // New task modal
+    showNewTask: false,
+    saving: false,
+    createError: '',
+    newTask: { name: '', description: '', section_id: '', priority: 'medium', status: 'todo', due_date: '', assignee: '' },
+
+    // Inline add-section
+    showAddSection: false,
+    newSectionName: '',
+    sectionSaving: false,
+    sectionError: '',
+
+    // Task detail panel
+    expandedTaskId: null,
+    detailCache: {},
+    detailLoading: {},
+    detailError: {},
+
+    // Inline rename
+    inlineEditId: null,
+    inlineEditName: '',
+
+    // Collapsed sections — stored as object with section id (or 'unassigned') as key
+    collapsedSections: {},
+
+    async init() {
+      await this.refresh();
+    },
+
+    getCsrf() {
+      const m = document.cookie.match(/csrftoken=([^;]+)/);
+      return m ? m[1] : '';
+    },
+
+    todayIso() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    },
+
+    isOverdue(task) {
+      return !task.completed && !!task.due_date && task.due_date < this.todayIso();
+    },
+
+    overdueCount() {
+      return this.tasks.filter(t => this.isOverdue(t)).length;
+    },
+
+    formatDue(iso) {
+      if (!iso) return '';
+      return `due ${iso}`;
+    },
+
+    labelForStatus(s) {
+      return ({ todo: 'To Do', in_progress: 'In Progress', blocked: 'Blocked', done: 'Done' })[s] || s;
+    },
+
+    async refresh() {
+      this.loading = true;
+      this.error = '';
+      try {
+        const projResp = await fetch(`/api/pm/api/projects/${this.slug}/`);
+        if (!projResp.ok) {
+          this.error = `Failed to load project (HTTP ${projResp.status})`;
+          this.loading = false;
+          return;
+        }
+        this.project = await projResp.json();
+        this.sections = (this.project.sections || []).slice().sort((a, b) => a.order - b.order);
+
+        const tasksResp = await fetch(`/api/pm/api/tasks/?project=${this.slug}`);
+        if (!tasksResp.ok) {
+          this.error = `Failed to load tasks (HTTP ${tasksResp.status})`;
+          this.loading = false;
+          return;
+        }
+        this.tasks = await tasksResp.json();
+      } catch (e) {
+        console.error('PM refresh failed:', e);
+        this.error = 'Network error while loading the project.';
+      }
+      this.loading = false;
+      this.$nextTick(() => window.lucide && window.lucide.createIcons());
+    },
+
+    tasksInSection(sectionId) {
+      // Incomplete first, then completed at bottom
+      const inSection = this.tasks.filter(t => t.section && t.section.id === sectionId);
+      return [...inSection.filter(t => !t.completed), ...inSection.filter(t => t.completed)];
+    },
+
+    tasksWithoutSection() {
+      const without = this.tasks.filter(t => !t.section);
+      return [...without.filter(t => !t.completed), ...without.filter(t => t.completed)];
+    },
+
+    // --- Section collapse ---
+    toggleSectionCollapse(key) {
+      this.collapsedSections = { ...this.collapsedSections, [key]: !this.collapsedSections[key] };
+      this.$nextTick(() => window.lucide && window.lucide.createIcons());
+    },
+    isSectionCollapsed(key) {
+      return !!this.collapsedSections[key];
+    },
+
+    // --- Complete / reopen ---
+    async toggleComplete(task) {
+      if (this.busy[task.id]) return;
+      this.busy[task.id] = true;
+      const endpoint = task.completed ? 'reopen' : 'complete';
+      try {
+        const resp = await fetch(`/api/pm/api/tasks/${task.id}/${endpoint}/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCsrf() },
+          body: '{}',
+        });
+        if (!resp.ok) {
+          this.error = `${endpoint} failed (HTTP ${resp.status})`;
+        } else {
+          const updated = await resp.json();
+          this.patchTask(updated);
+        }
+      } catch (e) {
+        console.error('Toggle complete failed:', e);
+        this.error = 'Network error while updating the task.';
+      }
+      this.busy[task.id] = false;
+    },
+
+    patchTask(updated) {
+      const idx = this.tasks.findIndex(t => t.id === updated.id);
+      if (idx !== -1) this.tasks[idx] = updated;
+      // Refresh cached detail if we were editing it
+      if (this.detailCache[updated.id]) {
+        this.detailCache[updated.id] = this.hydrateDetail(updated, this.detailCache[updated.id]);
+      }
+    },
+
+    // --- Inline rename ---
+    startInlineEdit(task) {
+      this.inlineEditId = task.id;
+      this.inlineEditName = task.name;
+    },
+    cancelInlineEdit() {
+      this.inlineEditId = null;
+      this.inlineEditName = '';
+    },
+    async saveInlineEdit(task) {
+      // Enter removes the input (which fires blur synchronously on the removed
+      // node), so both @keydown.enter and @blur can race here. Drop the edit
+      // mode synchronously and short-circuit if another invocation is already
+      // in flight or has already cleared the edit state.
+      if (this.inlineEditId !== task.id) return;
+      const newName = (this.inlineEditName || '').trim();
+      this.inlineEditId = null;
+      if (this.busy[task.id]) return;
+      if (!newName || newName === task.name) return;
+      this.busy[task.id] = true;
+      try {
+        const resp = await fetch(`/api/pm/api/tasks/${task.id}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCsrf() },
+          body: JSON.stringify({ project_slug: this.slug, name: newName }),
+        });
+        if (!resp.ok) {
+          this.error = `Rename failed (HTTP ${resp.status})`;
+        } else {
+          this.patchTask(await resp.json());
+        }
+      } catch (e) {
+        console.error('Rename failed:', e);
+        this.error = 'Network error while renaming.';
+      }
+      this.busy[task.id] = false;
+    },
+
+    // --- Task detail panel ---
+    async toggleExpand(task) {
+      if (this.inlineEditId === task.id) return;
+      if (this.expandedTaskId === task.id) {
+        this.closeDetail();
+        return;
+      }
+      this.expandedTaskId = task.id;
+      if (!this.detailCache[task.id]) {
+        this.detailLoading[task.id] = true;
+        try {
+          const resp = await fetch(`/api/pm/api/tasks/${task.id}/`);
+          if (resp.ok) {
+            const detail = await resp.json();
+            this.detailCache[task.id] = this.hydrateDetail(detail, detail);
+          } else {
+            this.detailError[task.id] = `Failed to load detail (HTTP ${resp.status})`;
+          }
+        } catch (e) {
+          console.error('Load detail failed:', e);
+          this.detailError[task.id] = 'Network error while loading task detail.';
+        }
+        this.detailLoading[task.id] = false;
+      }
+    },
+
+    hydrateDetail(source, existing) {
+      // Build the editable form state, preserving unsaved edits if already open
+      return {
+        name: existing?.name ?? source.name ?? '',
+        description: existing?.description ?? source.description ?? '',
+        priority: existing?.priority ?? source.priority ?? 'medium',
+        status: existing?.status ?? source.status ?? 'todo',
+        due_date: existing?.due_date ?? source.due_date ?? '',
+        assignee: existing?.assignee ?? source.assignee ?? '',
+        _section_id: existing?._section_id ?? (source.section ? String(source.section.id) : ''),
+        _tags_str: existing?._tags_str ?? ((source.tags || []).join(', ')),
+      };
+    },
+
+    closeDetail() {
+      this.expandedTaskId = null;
+    },
+
+    async retryDetail(taskId) {
+      // Clear previous failure state and re-enter the toggleExpand path.
+      delete this.detailError[taskId];
+      delete this.detailCache[taskId];
+      const task = this.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      // Force reopening by first collapsing, then expanding.
+      this.expandedTaskId = null;
+      await this.toggleExpand(task);
+    },
+
+    async saveDetail(taskId) {
+      const form = this.detailCache[taskId];
+      if (!form) return;
+      this.busy[taskId] = true;
+      this.detailError[taskId] = '';
+      try {
+        const body = {
+          project_slug: this.slug,
+          name: form.name,
+          description: form.description,
+          priority: form.priority,
+          status: form.status,
+          due_date: form.due_date || null,
+          assignee: form.assignee || '',
+          tags: (form._tags_str || '').split(',').map(s => s.trim()).filter(Boolean),
+        };
+        if (form._section_id) body.section_id = Number(form._section_id);
+        else body.section_id = null;
+
+        const resp = await fetch(`/api/pm/api/tasks/${taskId}/`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCsrf() },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          this.detailError[taskId] = err.detail || Object.values(err).flat().join(' ') || `Save failed (HTTP ${resp.status})`;
+        } else {
+          const updated = await resp.json();
+          this.patchTask(updated);
+          this.detailCache[taskId] = this.hydrateDetail(updated, null);
+        }
+      } catch (e) {
+        console.error('Save detail failed:', e);
+        this.detailError[taskId] = 'Network error while saving.';
+      }
+      this.busy[taskId] = false;
+    },
+
+    async deleteTask(taskId) {
+      if (!confirm('Delete this task? This cannot be undone.')) return;
+      this.busy[taskId] = true;
+      try {
+        const resp = await fetch(`/api/pm/api/tasks/${taskId}/`, {
+          method: 'DELETE',
+          headers: { 'X-CSRFToken': this.getCsrf() },
+        });
+        if (!resp.ok && resp.status !== 204) {
+          this.error = `Delete failed (HTTP ${resp.status})`;
+        } else {
+          this.tasks = this.tasks.filter(t => t.id !== taskId);
+          delete this.detailCache[taskId];
+          this.expandedTaskId = null;
+        }
+      } catch (e) {
+        console.error('Delete task failed:', e);
+        this.error = 'Network error while deleting.';
+      }
+      this.busy[taskId] = false;
+    },
+
+    // --- Sections ---
+    async createSection() {
+      const name = (this.newSectionName || '').trim();
+      if (!name) return;
+      this.sectionSaving = true;
+      this.sectionError = '';
+      try {
+        const resp = await fetch(`/api/pm/api/projects/${this.slug}/sections/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCsrf() },
+          body: JSON.stringify({ name }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          this.sectionError = err.detail || Object.values(err).flat().join(' ') || `Add failed (HTTP ${resp.status})`;
+        } else {
+          const created = await resp.json();
+          this.sections = [...this.sections, created].sort((a, b) => a.order - b.order);
+          this.newSectionName = '';
+          this.showAddSection = false;
+        }
+      } catch (e) {
+        console.error('Create section failed:', e);
+        this.sectionError = 'Network error while creating the section.';
+      }
+      this.sectionSaving = false;
+    },
+
+    // --- New task modal ---
+    openNewTask() {
+      this.newTask = { name: '', description: '', section_id: '', priority: 'medium', status: 'todo', due_date: '', assignee: '' };
+      this.createError = '';
+      this.showNewTask = true;
+    },
+    closeNewTask() {
+      this.showNewTask = false;
+      this.createError = '';
+    },
+
+    async createTask() {
+      if (!this.newTask.name.trim()) return;
+      this.saving = true;
+      this.createError = '';
+      try {
+        const body = {
+          project_slug: this.slug,
+          name: this.newTask.name,
+          description: this.newTask.description || '',
+          priority: this.newTask.priority,
+          status: this.newTask.status,
+          assignee: this.newTask.assignee || '',
+        };
+        if (this.newTask.section_id) body.section_id = Number(this.newTask.section_id);
+        if (this.newTask.due_date) body.due_date = this.newTask.due_date;
+
+        const resp = await fetch('/api/pm/api/tasks/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.getCsrf() },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) {
+          const errBody = await resp.json().catch(() => ({}));
+          this.createError = errBody.detail || Object.values(errBody).flat().join(' ') || `Create failed (HTTP ${resp.status})`;
+          this.saving = false;
+          return;
+        }
+        const created = await resp.json();
+        this.tasks = [...this.tasks, created];
+        this.closeNewTask();
+      } catch (e) {
+        console.error('Create task failed:', e);
+        this.createError = 'Network error — check your connection and try again.';
+      }
+      this.saving = false;
+    },
+  };
+}
+</script>
+{% endblock %}

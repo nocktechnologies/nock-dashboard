@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block title %}Tasks — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Project card colored left accent — page-specific */
+  .task-accent-blue   { border-left: 3px solid #60a5fa; }
+  .task-accent-green  { border-left: 3px solid #34d399; }
+  .task-accent-purple { border-left: 3px solid #a78bfa; }
+  .task-accent-orange { border-left: 3px solid #fb923c; }
+  .task-accent-gray   { border-left: 3px solid var(--text-muted); }
+
+  /* Project color dots — page-specific */
+  .task-dot-blue   { background-color: #60a5fa; }
+  .task-dot-green  { background-color: #34d399; }
+  .task-dot-purple { background-color: #a78bfa; }
+  .task-dot-orange { background-color: #fb923c; }
+
+  /* Project summary horizontal scroll */
+  .task-summary-row {
+    display: flex;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    overflow-x: auto;
+    padding-bottom: var(--space-1);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .task-summary-row::-webkit-scrollbar { display: none; }
+  .task-summary-row .ncc-card {
+    min-width: 200px;
+    flex-shrink: 0;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  /* Overdue row tint */
+  .task-row-overdue {
+    background-color: rgba(248, 113, 113, 0.06);
+  }
+  .task-row-overdue:hover {
+    background-color: rgba(248, 113, 113, 0.12) !important;
+  }
+
+  /* Filter bar select widths */
+  .ncc-filter-bar .ncc-select { width: auto; min-width: 130px; }
+
+  @media (max-width: 767px) {
+    .task-summary-row .ncc-card { min-width: 170px; }
+    .ncc-filter-bar .ncc-select { min-height: 40px; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page header -->
+<div class="ncc-page-header">
+  <div>
+    <h1 class="ncc-page-title">Tasks</h1>
+    {% if stats %}
+    <p class="text-muted text-sm" style="margin-top:var(--space-1);">{{ stats|length }} project{{ stats|length|pluralize }} tracked</p>
+    {% endif %}
+  </div>
+  <div style="display:flex; align-items:center; gap:var(--space-3);">
+    <a href="/handoffs/" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Handoffs</a>
+    <div class="ncc-view-toggle">
+      <a href="?view=feed" class="ncc-tab {% if view_mode != 'dashboard' %}active{% endif %}">Feed</a>
+      <a href="?view=dashboard" class="ncc-tab {% if view_mode == 'dashboard' %}active{% endif %}">Dashboard</a>
+    </div>
+  </div>
+</div>
+
+<!-- Project Summary Cards -->
+{% if stats %}
+<div class="task-summary-row">
+  {% for s in stats %}
+  <div class="ncc-card ncc-stagger
+    {% if s.project.color == 'blue' %}task-accent-blue
+    {% elif s.project.color == 'green' %}task-accent-green
+    {% elif s.project.color == 'purple' %}task-accent-purple
+    {% elif s.project.color == 'orange' %}task-accent-orange
+    {% else %}task-accent-gray{% endif %}">
+    <p class="text-sm font-medium text-primary" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ s.project.name }}</p>
+    <div style="display:flex; align-items:center; gap:var(--space-3); margin-top:var(--space-1);">
+      <span class="text-xs text-secondary">{{ s.done }}/{{ s.total }} complete</span>
+      {% if s.overdue %}
+      <span class="text-xs text-danger font-medium">{{ s.overdue }} overdue</span>
+      {% endif %}
+    </div>
+    {% if s.last_activity %}
+    <p class="text-xs text-muted" style="margin-top:var(--space-1);">Last activity: {{ s.last_activity|timesince }} ago</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if view_mode == 'dashboard' %}
+<!-- ═══════ DASHBOARD VIEW ═══════ -->
+
+<!-- Overdue Tasks -->
+{% if overdue_tasks %}
+<div class="ncc-card ncc-stagger" style="padding:0; overflow:hidden; margin-bottom:var(--space-6);">
+  <div class="ncc-card-header" style="padding:var(--space-4); margin-bottom:0; border-bottom:1px solid var(--bg-border);">
+    <div class="ncc-card-label">
+      <span class="ncc-dot ncc-dot-danger ncc-dot-pulse"></span>
+      Overdue
+    </div>
+    <span class="text-xs text-muted">{{ overdue_tasks|length }} task{{ overdue_tasks|length|pluralize }}</span>
+  </div>
+  <table class="ncc-table">
+    <tbody>
+      {% for task in overdue_tasks %}
+      <tr class="task-row-overdue">
+        <td>
+          {% if task.permalink_url %}
+          <a href="{{ task.permalink_url }}" target="_blank" rel="noopener"
+             class="ncc-link-hover">{{ task.name|truncatechars:60 }}</a>
+          {% else %}
+          <span class="text-secondary">{{ task.name|truncatechars:60 }}</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex; align-items:center; gap:var(--space-2);">
+            <span class="ncc-dot
+              {% if task.project.color == 'blue' %}task-dot-blue
+              {% elif task.project.color == 'green' %}task-dot-green
+              {% elif task.project.color == 'purple' %}task-dot-purple
+              {% elif task.project.color == 'orange' %}task-dot-orange
+              {% else %}ncc-dot-muted{% endif %}"></span>
+            <span class="text-xs text-secondary">{{ task.project.name|truncatechars:20 }}</span>
+          </div>
+        </td>
+        <td class="text-xs text-danger font-medium">{{ task.due_on }}</td>
+        <td class="text-xs text-muted">{{ task.assignee_name|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Due This Week -->
+{% if due_this_week %}
+<div class="ncc-card ncc-stagger" style="padding:0; overflow:hidden; margin-bottom:var(--space-6);">
+  <div class="ncc-card-header" style="padding:var(--space-4); margin-bottom:0; border-bottom:1px solid var(--bg-border);">
+    <div class="ncc-card-label">
+      <span class="ncc-dot ncc-dot-warning"></span>
+      Due This Week
+    </div>
+  </div>
+  <table class="ncc-table">
+    <tbody>
+      {% for task in due_this_week %}
+      <tr>
+        <td>
+          {% if task.permalink_url %}
+          <a href="{{ task.permalink_url }}" target="_blank" rel="noopener"
+             class="ncc-link-hover">{{ task.name|truncatechars:60 }}</a>
+          {% else %}
+          <span class="text-secondary">{{ task.name|truncatechars:60 }}</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex; align-items:center; gap:var(--space-2);">
+            <span class="ncc-dot
+              {% if task.project.color == 'blue' %}task-dot-blue
+              {% elif task.project.color == 'green' %}task-dot-green
+              {% elif task.project.color == 'purple' %}task-dot-purple
+              {% elif task.project.color == 'orange' %}task-dot-orange
+              {% else %}ncc-dot-muted{% endif %}"></span>
+            <span class="text-xs text-secondary">{{ task.project.name|truncatechars:20 }}</span>
+          </div>
+        </td>
+        <td class="text-xs {% if task.due_on == today %}text-warning font-medium{% else %}text-secondary{% endif %}">
+          {% if task.due_on == today %}Today{% else %}{{ task.due_on }}{% endif %}
+        </td>
+        <td class="text-xs text-muted">{{ task.assignee_name|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- Recent Completions -->
+{% if recent_completed %}
+<div class="ncc-card ncc-stagger" style="padding:0; overflow:hidden; margin-bottom:var(--space-6);">
+  <div class="ncc-card-header" style="padding:var(--space-4); margin-bottom:0; border-bottom:1px solid var(--bg-border);">
+    <div class="ncc-card-label">
+      <span class="ncc-dot ncc-dot-success"></span>
+      Recent Completions
+    </div>
+  </div>
+  <table class="ncc-table">
+    <tbody>
+      {% for task in recent_completed %}
+      <tr>
+        <td>
+          <span class="text-muted" style="text-decoration:line-through;">{{ task.name|truncatechars:60 }}</span>
+        </td>
+        <td>
+          <div style="display:flex; align-items:center; gap:var(--space-2);">
+            <span class="ncc-dot
+              {% if task.project.color == 'blue' %}task-dot-blue
+              {% elif task.project.color == 'green' %}task-dot-green
+              {% elif task.project.color == 'purple' %}task-dot-purple
+              {% elif task.project.color == 'orange' %}task-dot-orange
+              {% else %}ncc-dot-muted{% endif %}"></span>
+            <span class="text-xs text-muted">{{ task.project.name|truncatechars:20 }}</span>
+          </div>
+        </td>
+        <td class="text-xs text-success">{% if task.completed_at %}{{ task.completed_at|timesince }} ago{% else %}Completed{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if not overdue_tasks and not due_this_week and not recent_completed %}
+<div style="padding:var(--space-12) 0; text-align:center;">
+  <p class="text-sm text-secondary">No task data available in dashboard mode.</p>
+  <a href="?view=feed" class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="margin-top:var(--space-3); display:inline-flex;">Switch to feed view</a>
+</div>
+{% endif %}
+
+{% else %}
+<!-- ═══════ FEED VIEW ═══════ -->
+
+<!-- Filters -->
+<form method="get" class="ncc-filter-bar">
+  <input type="hidden" name="view" value="feed">
+  <select name="project" onchange="this.form.submit()" class="ncc-select">
+    <option value="">All projects</option>
+    {% for proj in projects %}
+    <option value="{{ proj.pk }}" {% if filter.form.project.value|stringformat:"s" == proj.pk|stringformat:"s" %}selected{% endif %}>
+      {{ proj.name|truncatechars:40 }}
+    </option>
+    {% endfor %}
+  </select>
+  <select name="priority" onchange="this.form.submit()" class="ncc-select">
+    <option value="">All priorities</option>
+    <option value="high" {% if filter.form.priority.value == 'high' %}selected{% endif %}>High</option>
+    <option value="medium" {% if filter.form.priority.value == 'medium' %}selected{% endif %}>Medium</option>
+    <option value="low" {% if filter.form.priority.value == 'low' %}selected{% endif %}>Low</option>
+  </select>
+  <select name="overdue" onchange="this.form.submit()" class="ncc-select">
+    <option value="">All</option>
+    <option value="yes" {% if filter.form.overdue.value == 'yes' %}selected{% endif %}>Overdue only</option>
+    <option value="no" {% if filter.form.overdue.value == 'no' %}selected{% endif %}>Not overdue</option>
+  </select>
+  {% if request.GET.project or request.GET.priority or request.GET.overdue %}
+  <a href="/tasks/?view=feed" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Clear</a>
+  {% endif %}
+</form>
+
+<!-- Table -->
+<div class="ncc-card" style="padding:0; overflow:hidden;">
+  {% if tasks %}
+  <table class="ncc-table">
+    <thead>
+      <tr>
+        <th>
+          <a href="?view=feed&{{ query_without_sort }}&sort={% if sort == 'name' %}-name{% else %}name{% endif %}" style="color:inherit;">Task</a>
+        </th>
+        <th>Project</th>
+        <th>Section</th>
+        <th>
+          <a href="?view=feed&{{ query_without_sort }}&sort={% if sort == 'due_on' %}-due_on{% else %}due_on{% endif %}" style="color:inherit;">Due</a>
+        </th>
+        <th>Priority</th>
+        <th>PR</th>
+        <th>Assignee</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in tasks %}
+      <tr class="ncc-stagger {% if task.is_overdue %}task-row-overdue{% endif %}">
+        <td>
+          {% if task.permalink_url %}
+          <a href="{{ task.permalink_url }}" target="_blank" rel="noopener"
+             class="ncc-link-hover" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:280px;">{{ task.name|truncatechars:70 }}</a>
+          {% else %}
+          <span class="text-secondary">{{ task.name|truncatechars:70 }}</span>
+          {% endif %}
+        </td>
+        <td>
+          <div style="display:flex; align-items:center; gap:var(--space-2);">
+            <span class="ncc-dot
+              {% if task.project.color == 'blue' %}task-dot-blue
+              {% elif task.project.color == 'green' %}task-dot-green
+              {% elif task.project.color == 'purple' %}task-dot-purple
+              {% elif task.project.color == 'orange' %}task-dot-orange
+              {% else %}ncc-dot-muted{% endif %}"></span>
+            <span class="text-xs text-secondary">{{ task.project.name|truncatechars:25 }}</span>
+          </div>
+        </td>
+        <td class="text-xs text-muted">{{ task.section_name|truncatechars:25|default:"—" }}</td>
+        <td class="text-xs {% if task.is_overdue %}text-danger font-medium{% else %}text-secondary{% endif %}">
+          {% if task.due_on %}{{ task.due_on }}{% if task.is_overdue %} &#9888;{% endif %}{% else %}—{% endif %}
+        </td>
+        <td>
+          {% if task.priority == 'high' %}
+          <span class="ncc-badge ncc-badge-priority-high">High</span>
+          {% elif task.priority == 'medium' %}
+          <span class="ncc-badge ncc-badge-priority-medium">Med</span>
+          {% elif task.priority == 'low' %}
+          <span class="ncc-badge ncc-badge-priority-low">Low</span>
+          {% else %}
+          <span class="text-xs text-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="text-xs">
+          {% if task.linked_pr %}
+          <a href="/pipeline/{{ task.linked_pr.repository.owner }}/{{ task.linked_pr.repository.name }}/{{ task.linked_pr.number }}/"
+             class="ncc-link-hover" style="color:var(--color-accent);">#{{ task.linked_pr.number }}</a>
+          {% else %}
+          <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="text-xs text-muted">{{ task.assignee_name|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding:var(--space-12) 0; text-align:center;">
+    <p class="text-sm text-secondary">No tasks found</p>
+    {% if request.GET.project or request.GET.priority or request.GET.overdue %}
+    <a href="/tasks/?view=feed" class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="margin-top:var(--space-3); display:inline-flex;">Clear filters</a>
+    {% else %}
+    <p class="text-xs text-muted" style="margin-top:var(--space-2);">Run <code class="font-mono" style="background:var(--bg-surface-hover); padding:2px var(--space-1); border-radius:var(--radius-sm);">python manage.py seed_asana_projects && python manage.py sync_asana</code> to load tasks</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

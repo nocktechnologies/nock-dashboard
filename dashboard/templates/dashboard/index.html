@@ -1,0 +1,855 @@
+{% extends "base.html" %}
+
+{% block title %}Nerve Center — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Reviewer badge colors (page-specific) */
+  .reviewer-coderabbit { background: rgba(6, 182, 212, 0.15); color: var(--color-info); }
+  .reviewer-human { background: rgba(52, 211, 153, 0.15); color: var(--color-success); }
+  .reviewer-copilot { background: rgba(249, 115, 22, 0.15); color: var(--color-orange); }
+  .reviewer-gemini { background: rgba(124, 92, 252, 0.15); color: var(--color-purple); }
+  .reviewer-ci { background: rgba(107, 114, 128, 0.15); color: #9CA3AF; }
+
+  /* Category pill (page-specific) */
+  .brain-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: 10px;
+    font-weight: 500;
+    background-color: var(--bg-surface-hover);
+    color: var(--text-secondary);
+    border: 1px solid var(--bg-border);
+  }
+
+  /* Overdue/due-today alert rows */
+  .task-alert-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    margin-bottom: var(--space-2);
+  }
+
+  /* Brief output box */
+  .brief-output {
+    margin-top: var(--space-3);
+    background-color: var(--bg-base);
+    border: 1px solid var(--bg-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    max-height: 160px;
+    overflow-y: auto;
+  }
+
+  /* Project color dots for tasks */
+  .dot-blue   { background-color: #60A5FA; }
+  .dot-green  { background-color: #4ADE80; }
+  .dot-purple { background-color: #A78BFA; }
+  .dot-orange { background-color: #FB923C; }
+  .dot-gray   { background-color: #9CA3AF; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="nerveCenter()" x-init="init()">
+
+  <!-- Page Header -->
+  <div class="ncc-page-header">
+    <h1 class="ncc-page-title ncc-gradient-text">Nerve Center</h1>
+    <span class="text-muted text-sm" x-text="new Date().toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'})"></span>
+  </div>
+
+  <!-- Nerve Grid -->
+  <div class="ncc-nerve-grid">
+
+    <!-- Panel 1: Sessions -->
+    <div class="ncc-card ncc-stagger">
+      <div class="ncc-card-header">
+        <span class="ncc-card-label">
+          <span class="ncc-dot" :class="(terminal.length > 0 || activeSessions.length > 0) ? 'ncc-dot-success ncc-dot-pulse' : 'ncc-dot-muted'"></span>
+          <i data-lucide="terminal" style="width:16px;height:16px;"></i>
+          SESSIONS
+        </span>
+        <a href="/sessions/" class="ncc-card-link">View All</a>
+      </div>
+
+      <!-- Hero: active count -->
+      <div class="ncc-hero-row" style="margin-bottom:var(--space-4);">
+        <div>
+          <div class="ncc-hero-number" x-text="activeSessions.length + terminal.reduce((sum, t) => sum + (t.sessions ? t.sessions.length : 0), 0)"></div>
+          <div class="ncc-hero-label">Active</div>
+        </div>
+      </div>
+
+      <template x-if="terminal.length === 0 && activeSessions.length === 0">
+        <div style="text-align:center; padding:var(--space-4) 0;">
+          <p class="text-secondary text-sm">No Terminal connected</p>
+          <p class="text-muted text-xs" style="margin-top:var(--space-1);">Terminal Bridge sends heartbeats here</p>
+        </div>
+      </template>
+
+      <!-- Terminal heartbeats -->
+      <div>
+        <template x-for="t in terminal" :key="t.machine">
+          <div class="ncc-compact-row" style="flex-direction:column; align-items:stretch;">
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:var(--space-2); min-width:0;">
+                <span class="ncc-dot" :class="t.is_stale ? 'ncc-dot-muted' : 'ncc-dot-success ncc-dot-pulse'"></span>
+                <span class="text-sm font-medium" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="t.machine"></span>
+              </div>
+            </div>
+            <template x-if="t.sessions && t.sessions.length > 0">
+              <div style="margin-top:var(--space-1);">
+                <template x-for="s in t.sessions" :key="s.project + s.branch">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); padding:var(--space-1) 0;">
+                    <span class="text-xs font-medium" x-text="s.project"></span>
+                    <span class="text-xs text-muted font-mono" style="text-align:right;" x-text="s.branch || '—'"></span>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!t.sessions || t.sessions.length === 0">
+              <p class="text-xs text-muted" style="margin-top:var(--space-1);">No active sessions</p>
+            </template>
+            <template x-if="t.is_stale">
+              <p class="text-xs text-muted" style="margin-top:var(--space-1);" x-text="'Last seen: ' + new Date(t.received_at).toLocaleTimeString()"></p>
+            </template>
+          </div>
+        </template>
+
+        <!-- Claude Code sessions (non-terminal) -->
+        <template x-for="s in activeSessions" :key="s.id">
+          <div class="ncc-compact-row" style="gap:var(--space-2);">
+            <div style="display:flex; align-items:center; gap:var(--space-2); min-width:0; flex:1;">
+              <span class="ncc-dot ncc-dot-success ncc-dot-pulse"></span>
+              <span class="text-sm font-medium" x-text="s.agent_display"></span>
+              <span class="text-xs text-muted font-mono" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="s.branch || 'no branch'"></span>
+            </div>
+            <span class="text-xs text-muted" style="flex-shrink:0;" x-text="sessionDuration(s.started_at)"></span>
+          </div>
+        </template>
+      </div>
+      <template x-if="activeSessions.length >= 5">
+        <a href="/sessions/?status=active" class="ncc-card-link" style="display:block; text-align:center; margin-top:var(--space-2);">View all</a>
+      </template>
+    </div>
+
+    <!-- Panel 2: Pipeline -->
+    <div class="ncc-card ncc-stagger">
+      <div class="ncc-card-header">
+        <span class="ncc-card-label">
+          <span class="ncc-dot ncc-dot-info"></span>
+          <i data-lucide="git-pull-request" style="width:16px;height:16px;"></i>
+          PIPELINE
+        </span>
+        <a href="/pipeline/" class="ncc-card-link">View All</a>
+      </div>
+
+      <!-- Hero row: Open / Merged / CI Fail -->
+      <div class="ncc-hero-row" style="margin-bottom:var(--space-4);">
+        <div>
+          <div class="ncc-hero-number" x-text="stats.open_pr_count ?? '{{ open_pr_count }}'"></div>
+          <div class="ncc-hero-label">Open</div>
+        </div>
+        <div>
+          <div class="ncc-hero-number text-success">{{ merged_this_week }}</div>
+          <div class="ncc-hero-label">Merged/wk</div>
+        </div>
+        <div>
+          <div class="ncc-hero-number"
+               :class="(stats.failed_ci_count ?? {{ failed_ci_prs|length }}) > 0 ? 'text-danger' : 'text-success'"
+               x-text="stats.failed_ci_count ?? '{{ failed_ci_prs|length }}'"></div>
+          <div class="ncc-hero-label">CI Fail</div>
+        </div>
+      </div>
+
+      <!-- Recent merges -->
+      <div class="ncc-card-label" style="margin-bottom:var(--space-2);">Recent Merges</div>
+      {% if last_5_merged %}
+      <div>
+        {% for pr in last_5_merged %}
+        <a href="/pipeline/{{ pr.repository.owner }}/{{ pr.repository.name }}/{{ pr.number }}/"
+           class="ncc-compact-row" style="transition: background var(--transition-fast); border-radius:var(--radius-md); padding:var(--space-2); margin:0 calc(-1 * var(--space-2));">
+          <div style="display:flex; align-items:center; gap:var(--space-2); min-width:0; flex:1;">
+            <span class="ncc-dot ncc-dot-success"></span>
+            <span class="text-xs font-mono" style="color:var(--accent-start);">{{ pr.repository.name|truncatechars:15 }}</span>
+            <span class="text-sm" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ pr.title|truncatechars:30 }}</span>
+          </div>
+          <span class="text-xs text-muted" style="flex-shrink:0; margin-left:var(--space-2);">{{ pr.merged_at|timesince }}ago</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-xs text-muted" style="text-align:center; padding:var(--space-2) 0;">No merged PRs yet</p>
+      {% endif %}
+    </div>
+
+    <!-- Panel 3: Brain -->
+    <div class="ncc-card ncc-stagger">
+      <div class="ncc-card-header">
+        <span class="ncc-card-label">
+          <span class="ncc-dot ncc-dot-success"></span>
+          <i data-lucide="brain" style="width:16px;height:16px;"></i>
+          BRAIN
+        </span>
+        <a href="/brain/" class="ncc-card-link">Browse</a>
+      </div>
+
+      <!-- Hero: entries -->
+      <div class="ncc-hero-row" style="margin-bottom:var(--space-4);">
+        <div>
+          <div class="ncc-hero-number" x-text="brain.entry_count"></div>
+          <div class="ncc-hero-label">Entries</div>
+        </div>
+        <div>
+          <div class="ncc-hero-number" :class="brain.stale_count > 0 ? 'text-warning' : 'text-success'" x-text="brain.stale_count"></div>
+          <div class="ncc-hero-label">Stale (&gt;30d)</div>
+        </div>
+      </div>
+
+      <!-- Category pills -->
+      <div style="display:flex; flex-wrap:wrap; gap:var(--space-2); margin-bottom:var(--space-3);">
+        <template x-for="[cat, count] in Object.entries(brain.category_counts)" :key="cat">
+          <span class="brain-pill" x-text="cat + ' ' + count"></span>
+        </template>
+      </div>
+
+      <template x-if="brain.last_updated">
+        <p class="text-xs text-muted" style="margin-bottom:var(--space-3);" x-text="'Updated: ' + new Date(brain.last_updated).toLocaleDateString()"></p>
+      </template>
+
+      <!-- Consolidation -->
+      <div x-data="{ consolidating: false, lastResult: null }" style="margin-bottom:var(--space-3);">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:var(--space-2);">
+          <div class="text-xs text-secondary">
+            <span x-text="brain.last_consolidation ? 'Last: ' + new Date(brain.last_consolidation).toLocaleDateString() : 'Never consolidated'"></span>
+            <span x-show="brain.entries_since_consolidation != null" style="margin-left:var(--space-2);" x-text="brain.entries_since_consolidation + ' updates since'"></span>
+          </div>
+          <button @click="runConsolidate($data)"
+                  :disabled="consolidating"
+                  class="ncc-btn ncc-btn-sm ncc-btn-ghost">
+            <span x-text="consolidating ? 'Running...' : 'Consolidate'"></span>
+          </button>
+        </div>
+        <template x-if="lastResult && !lastResult.skipped">
+          <p class="text-xs text-success" style="margin-top:var(--space-1);" x-text="lastResult.notes"></p>
+        </template>
+      </div>
+
+      <!-- Brief generator -->
+      <div x-data="{ scope: 'general', showBrief: false, briefText: '', generating: false }">
+        <div style="display:flex; align-items:center; gap:var(--space-2);">
+          <select x-model="scope" class="ncc-select" style="flex:1;">
+            <option value="general">General</option>
+            <option value="domain">Domain</option>
+            <option value="project">Project</option>
+            <option value="personal">Personal</option>
+            <option value="continuity">State of Mind</option>
+          </select>
+          <button @click="generateBrief(scope, $data)"
+                  :disabled="generating"
+                  class="ncc-btn ncc-btn-sm ncc-btn-ghost">
+            <span x-text="generating ? 'Generating...' : 'Generate Brief'"></span>
+          </button>
+        </div>
+        <template x-if="showBrief">
+          <div class="brief-output">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--space-2);">
+              <span class="ncc-card-label">Context Brief</span>
+              <button @click="navigator.clipboard.writeText(briefText)" class="ncc-card-link" style="cursor:pointer;">Copy</button>
+            </div>
+            <pre class="text-sm font-mono" style="white-space:pre-wrap;" x-text="briefText"></pre>
+          </div>
+        </template>
+      </div>
+
+      <!-- Diary stats -->
+      <div style="border-top:1px solid var(--border-subtle); padding-top:var(--space-3); margin-top:var(--space-3);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--space-2);">
+          <span class="text-xs text-muted">Mara's Diary</span>
+          <a href="/brain/diary/" class="ncc-card-link">Browse</a>
+        </div>
+        <div style="display:flex; gap:var(--space-4);">
+          <div>
+            <div class="text-lg font-semibold" style="color:var(--emerald-500);" x-text="diary.total_entries"></div>
+            <div class="text-xs text-muted">Entries</div>
+          </div>
+          <div>
+            <div class="text-lg font-semibold" style="color:var(--text-primary);" x-text="(diary.total_words / 1000).toFixed(1) + 'k'"></div>
+            <div class="text-xs text-muted">Words</div>
+          </div>
+          <div>
+            <div class="text-lg font-semibold" style="color:var(--text-secondary);" x-text="diary.entries_this_week"></div>
+            <div class="text-xs text-muted">This week</div>
+          </div>
+        </div>
+        <template x-if="diary.last_entry_date">
+          <p class="text-xs text-muted" style="margin-top:var(--space-2);" x-text="'Last entry: ' + new Date(diary.last_entry_date).toLocaleDateString()"></p>
+        </template>
+      </div>
+
+      <!-- Handoffs (latest across contexts) -->
+      <div style="border-top:1px solid var(--border-subtle); padding-top:var(--space-3); margin-top:var(--space-3);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--space-2);">
+          <span class="text-xs text-muted">Latest Handoff</span>
+          <a href="/brain/handoffs/" class="ncc-card-link">Browse</a>
+        </div>
+        <template x-if="!handoff.title">
+          <div class="text-xs text-muted">No handoffs yet.</div>
+        </template>
+        <template x-if="handoff.title">
+          <div>
+            <div style="display:flex; align-items:center; gap:var(--space-2); margin-bottom:var(--space-1);">
+              <span class="brain-pill" x-text="handoff.context"></span>
+              <span class="text-xs text-muted" x-text="'v' + handoff.version"></span>
+            </div>
+            <div class="text-sm font-medium" style="color:var(--text-primary);" x-text="handoff.title"></div>
+            <div style="display:flex; align-items:center; gap:var(--space-3); margin-top:var(--space-2);">
+              <span class="text-xs" :class="handoff.open_items_count > 0 ? 'text-warning' : 'text-muted'">
+                <span x-text="handoff.open_items_count"></span> open
+              </span>
+              <span class="text-xs text-muted" x-show="handoff.completed_items_count > 0">
+                <span x-text="handoff.completed_items_count"></span> done
+              </span>
+              <span class="text-xs text-muted" x-show="handoff.deferred_items_count > 0">
+                <span x-text="handoff.deferred_items_count"></span> deferred
+              </span>
+              <span class="text-xs text-muted" style="margin-left:auto;" x-text="handoff.updated_at ? new Date(handoff.updated_at).toLocaleDateString() : ''"></span>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Panel 4: Tasks -->
+    <div class="ncc-card ncc-stagger">
+      <div class="ncc-card-header">
+        <span class="ncc-card-label">
+          <span class="ncc-dot ncc-dot-info"></span>
+          <i data-lucide="check-square" style="width:16px;height:16px;"></i>
+          TASKS
+        </span>
+        <a href="/tasks/" class="ncc-card-link">View All</a>
+      </div>
+
+      {% if overdue_count %}
+      <div class="task-alert-row" style="background: rgba(248, 113, 113, 0.12);">
+        <span class="ncc-dot ncc-dot-danger"></span>
+        <span class="text-danger text-sm font-medium">{{ overdue_count }} overdue</span>
+      </div>
+      {% endif %}
+
+      {% if due_today_count %}
+      <div class="task-alert-row" style="background: rgba(251, 191, 36, 0.12);">
+        <span class="ncc-dot ncc-dot-warning"></span>
+        <span class="text-warning text-sm font-medium">{{ due_today_count }} due today</span>
+      </div>
+      {% endif %}
+
+      {% if upcoming_tasks %}
+      <div>
+        {% for task in upcoming_tasks %}
+        {% if task.permalink_url %}
+        <a href="{{ task.permalink_url }}" target="_blank" rel="noopener" class="ncc-compact-row" style="gap:var(--space-2); transition:background var(--transition-fast); border-radius:var(--radius-md); padding:var(--space-2); margin:0 calc(-1 * var(--space-2));">
+        {% else %}
+        <div class="ncc-compact-row" style="gap:var(--space-2); padding:var(--space-2);">
+        {% endif %}
+          <span class="ncc-dot" style="margin-top:5px; flex-shrink:0;
+            {% if task.project.color == 'blue' %}background-color:#60A5FA;
+            {% elif task.project.color == 'green' %}background-color:#4ADE80;
+            {% elif task.project.color == 'purple' %}background-color:#A78BFA;
+            {% elif task.project.color == 'orange' %}background-color:#FB923C;
+            {% else %}background-color:#9CA3AF;{% endif %}"></span>
+          <div style="min-width:0; flex:1;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:var(--space-2);">
+              <span class="text-sm" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ task.name|truncatechars:35 }}</span>
+              {% if task.due_on %}
+              <span class="text-xs {% if task.is_overdue %}text-danger font-medium{% else %}text-muted{% endif %}" style="flex-shrink:0;">{{ task.due_on }}</span>
+              {% endif %}
+            </div>
+            <span class="text-xs text-muted" style="display:block; margin-top:2px;">{{ task.project.name|truncatechars:15 }}</span>
+          </div>
+        {% if task.permalink_url %}
+        </a>
+        {% else %}
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-xs text-muted" style="text-align:center; padding:var(--space-6) 0;">No tasks synced yet</p>
+      {% endif %}
+    </div>
+
+    <!-- Panel 5: Financial -->
+    <div class="ncc-card ncc-stagger">
+      <div class="ncc-card-header">
+        <span class="ncc-card-label">
+          <span class="ncc-dot ncc-dot-info"></span>
+          <i data-lucide="wallet" style="width:16px;height:16px;"></i>
+          SPEND
+        </span>
+        <a href="/spend/" class="ncc-card-link">Details</a>
+      </div>
+
+      <!-- Hero: MTD spend -->
+      <div class="ncc-hero-row" style="margin-bottom:var(--space-4);">
+        <div>
+          <div class="ncc-hero-number ncc-gradient-text" x-text="'$' + spendData.mtd_spend"></div>
+          <div class="ncc-hero-label">Month to Date</div>
+        </div>
+        <div>
+          <div class="ncc-hero-number" x-text="'$' + spendData.today_spend"></div>
+          <div class="ncc-hero-label">Today</div>
+        </div>
+      </div>
+
+      <!-- Subscriptions -->
+      <div class="ncc-compact-row">
+        <span class="text-sm text-secondary">Subscriptions</span>
+        <span class="text-sm font-medium" style="color:var(--accent-start);" x-text="'$' + spendData.subscriptions_total + '/mo'"></span>
+      </div>
+
+      <!-- Budget bar -->
+      <div style="margin-top:var(--space-3);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--space-2);">
+          <span class="text-xs text-muted">Budget</span>
+          <span class="text-xs font-medium"
+                :class="spendData.budget_pct > 80 ? 'text-danger' : spendData.budget_pct > 60 ? 'text-warning' : 'text-success'"
+                x-text="spendData.budget_total ? spendData.budget_pct + '% used' : 'No budget set'"></span>
+        </div>
+        <div class="ncc-progress">
+          <div class="ncc-progress-fill"
+               :style="'width: ' + (spendData.budget_total ? spendData.budget_pct : 0) + '%'"
+               :class="{ 'ncc-progress-danger': spendData.budget_pct > 80 }"></div>
+        </div>
+        <template x-if="spendData.budget_total">
+          <p class="text-xs text-muted" style="margin-top:var(--space-1);"
+             x-text="'$' + (spendData.budget_total - parseFloat(spendData.mtd_spend)).toFixed(2) + ' remaining'"></p>
+        </template>
+      </div>
+    </div>
+
+    <!-- Panel 6: Agent Teams -->
+    <div class="ncc-card ncc-stagger">
+      <div class="ncc-card-header">
+        <span class="ncc-card-label">
+          <span class="ncc-dot" :class="activeTeams.length > 0 ? 'ncc-dot-success ncc-dot-pulse' : 'ncc-dot-muted'"></span>
+          <i data-lucide="users" style="width:16px;height:16px;"></i>
+          TEAMS
+        </span>
+        <a href="/teams/" class="ncc-card-link">Manage</a>
+      </div>
+
+      <template x-if="activeTeams.length === 0">
+        <div style="text-align:center; padding:var(--space-4) 0;">
+          <p class="text-secondary text-sm">No active missions</p>
+          <p class="text-muted text-xs" style="margin-top:var(--space-1); margin-bottom:var(--space-3);">Create a team to start coordinating agents</p>
+          <a href="/teams/" class="ncc-btn ncc-btn-sm ncc-btn-primary">Create a team</a>
+        </div>
+      </template>
+
+      <div>
+        <template x-for="team in activeTeams" :key="team.id">
+          <div style="background:var(--bg-surface-hover); border-radius:var(--radius-md); padding:var(--space-3); margin-bottom:var(--space-2);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--space-1);">
+              <span class="text-sm font-medium" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="team.name"></span>
+              <span class="text-xs text-secondary" x-text="team.member_count + ' agents'"></span>
+            </div>
+            <p class="text-xs text-secondary" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:var(--space-2);" x-text="team.mission"></p>
+            <div class="ncc-progress" style="margin-bottom:var(--space-1);">
+              <div class="ncc-progress-fill"
+                   :style="'width: ' + (team.task_summary.total > 0 ? Math.round(team.task_summary.completed / team.task_summary.total * 100) : 0) + '%'"></div>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span class="text-xs text-secondary" x-text="team.task_summary.completed + '/' + team.task_summary.total + ' tasks'"></span>
+              <template x-if="team.task_summary.blocked > 0">
+                <span class="text-xs text-danger font-medium" x-text="team.task_summary.blocked + ' blocked'"></span>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Prompt Queue sub-section -->
+      <div style="margin-top:var(--space-4); padding-top:var(--space-3); border-top:1px solid var(--bg-border);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--space-2);">
+          <span class="ncc-card-label">Prompt Queue</span>
+          <a href="/prompts/" class="ncc-card-link">Browse</a>
+        </div>
+
+        <template x-if="promptStats.total === 0">
+          <p class="text-xs text-muted">No prompts queued</p>
+        </template>
+
+        <template x-if="promptStats.total > 0">
+          <div>
+            <div style="display:flex; align-items:center; gap:var(--space-3); margin-bottom:var(--space-2);">
+              <span class="text-xs text-success font-medium" x-text="promptStats.ready + ' ready'"></span>
+              <span class="text-xs text-warning" x-text="promptStats.in_progress + ' executing'"></span>
+              <span class="text-xs text-secondary" x-text="promptStats.completed_this_week + ' done this week'"></span>
+            </div>
+            <template x-if="promptStats.ready > 0">
+              <div style="display:flex; align-items:center; gap:var(--space-2);">
+                <span class="text-xs text-muted">Next up:</span>
+                <a href="/prompts/" class="text-xs" style="color:var(--accent-start); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" x-text="nextPrompt"></a>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Panel 7: Alerts -->
+    <div class="ncc-card ncc-stagger">
+      <div class="ncc-card-header">
+        <span class="ncc-card-label">
+          <span class="ncc-dot" :class="alerts.some(a => a.level === 'error') ? 'ncc-dot-danger ncc-dot-pulse' : (alerts.length > 0 || reviewAlerts.length > 0) ? 'ncc-dot-warning' : 'ncc-dot-muted'"></span>
+          <i data-lucide="bell-ring" style="width:16px;height:16px;"></i>
+          ALERTS
+        </span>
+        <div style="display:flex; align-items:center; gap:var(--space-2);">
+          <!-- Smart Watch indicator -->
+          <template x-if="smartWatch.enabled_rules != null">
+            <span class="text-xs" style="display:flex; align-items:center; gap:var(--space-1);"
+                  :class="smartWatch.enabled_rules > 0 ? 'text-success' : 'text-muted'">
+              <span class="ncc-dot" :class="smartWatch.enabled_rules > 0 ? 'ncc-dot-success ncc-dot-pulse' : 'ncc-dot-muted'"></span>
+              <span x-text="'Watch: ' + smartWatch.events_today + ' today'"></span>
+            </span>
+          </template>
+          <template x-if="reviewAlerts.length > 0">
+            <button @click="markAllReviewsRead()" class="text-xs text-secondary" style="transition:color var(--transition-fast);">Mark read</button>
+          </template>
+          <a href="/notifications/" class="ncc-card-link">All</a>
+        </div>
+      </div>
+
+      <!-- Hero: alert count -->
+      <div class="ncc-hero-row" style="margin-bottom:var(--space-4);">
+        <div>
+          <div class="ncc-hero-number" x-text="alerts.length + reviewAlerts.length"></div>
+          <div class="ncc-hero-label">Active Alerts</div>
+        </div>
+      </div>
+
+      <!-- Review alerts -->
+      <template x-if="reviewAlerts.length > 0">
+        <div style="margin-bottom:var(--space-3);">
+          <div class="ncc-card-label" style="margin-bottom:var(--space-2);">Reviews</div>
+          <template x-for="r in reviewAlerts" :key="r.id">
+            <a :href="r.pr_url" target="_blank" rel="noopener"
+               class="ncc-compact-row" style="flex-direction:column; align-items:stretch; gap:0; padding:var(--space-2); margin:0 calc(-1 * var(--space-2)); border-radius:var(--radius-md); border-left:2px solid var(--accent-start); transition:background var(--transition-fast);">
+              <div style="display:flex; align-items:center; gap:var(--space-2);">
+                <span style="display:inline-flex; align-items:center; padding:1px var(--space-2); border-radius:var(--radius-sm); font-size:10px; font-weight:600;"
+                      :class="{
+                        'reviewer-coderabbit': r.reviewer === 'coderabbit',
+                        'reviewer-human': r.reviewer === 'human',
+                        'reviewer-copilot': r.reviewer === 'copilot',
+                        'reviewer-gemini': r.reviewer === 'gemini',
+                        'reviewer-ci': r.reviewer === 'ci',
+                      }" x-text="reviewBadge(r)"></span>
+                <span class="text-sm" x-text="reviewAction(r)"></span>
+                <span class="text-xs font-mono" style="color:var(--accent-start);" x-text="'#' + r.pr_number"></span>
+              </div>
+              <div style="display:flex; align-items:center; gap:var(--space-2); margin-top:2px;">
+                <span class="text-xs text-muted" x-text="r.repo.split('/').pop()"></span>
+                <span class="text-xs text-muted" x-text="timeAgo(r.created_at)"></span>
+              </div>
+            </a>
+          </template>
+        </div>
+      </template>
+
+      <!-- Intelligence alerts -->
+      <template x-if="alerts.length === 0 && reviewAlerts.length === 0">
+        <div style="text-align:center; padding:var(--space-4) 0;">
+          <p class="text-success text-sm">All clear</p>
+          <p class="text-muted text-xs" style="margin-top:var(--space-1);">No recent actionable events</p>
+        </div>
+      </template>
+
+      <template x-if="alerts.length > 0">
+        <div>
+          <template x-for="a in alerts" :key="a.id || a.message">
+            <div class="ncc-compact-row" style="gap:var(--space-2);">
+              <span class="text-xs" style="width:16px; text-align:center; flex-shrink:0;"
+                    :class="a.level === 'error' ? 'text-danger' : a.level === 'warning' ? 'text-warning' : 'text-info'"
+                    x-text="a.level === 'error' ? '!' : a.level === 'warning' ? '!' : 'i'"></span>
+              <div style="min-width:0; flex:1;">
+                <p class="text-sm" x-text="a.message"></p>
+                <p class="text-xs text-muted" x-text="a.timestamp ? new Date(a.timestamp).toLocaleString() : ''"></p>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function nerveCenter() {
+    return {
+        stats: {
+            open_pr_count: {{ open_pr_count }},
+            failed_ci_count: {{ failed_ci_prs|length }},
+        },
+        refreshing: false,
+        activeSessions: [],
+        terminal: [],
+        brain: { entry_count: 0, stale_count: 0, category_counts: {}, last_updated: null, last_consolidation: null, entries_since_consolidation: null },
+        diary: { total_entries: 0, total_words: 0, last_entry_date: null, entries_this_week: 0 },
+        handoff: { context: null, title: null, version: null, updated_at: null, open_items_count: 0, completed_items_count: 0, deferred_items_count: 0 },
+        spendData: { today_spend: '0.00', mtd_spend: '0.00', budget_total: null, budget_pct: 0, subscriptions_total: '0.00' },
+        alerts: [],
+        reviewAlerts: [],
+        activeTeams: [],
+        promptStats: { total: 0, draft: 0, ready: 0, in_progress: 0, completed_this_week: 0 },
+        nextPrompt: '',
+        smartWatch: { enabled_rules: null, events_today: 0, last_tick_at: null },
+
+        init() {
+            this.refreshAll();
+            setInterval(() => this.refreshAll(), 30000);
+        },
+
+        async refreshAll() {
+            this.refreshing = true;
+            await Promise.all([
+                this.refreshPipeline(),
+                this.refreshSessions(),
+                this.refreshTerminal(),
+                this.refreshBrain(),
+                this.refreshDiary(),
+                this.refreshHandoff(),
+                this.refreshSpend(),
+                this.refreshAlerts(),
+                this.refreshReviewAlerts(),
+                this.refreshTeams(),
+                this.refreshSmartWatch(),
+                this.refreshPrompts(),
+            ]);
+            this.refreshing = false;
+        },
+
+        async refreshPipeline() {
+            try {
+                const resp = await fetch('/api/pipeline/status/');
+                const json = await resp.json();
+                if (json.success) this.stats = json.data;
+            } catch(e) { console.error('Pipeline refresh failed:', e); }
+        },
+
+        async refreshSessions() {
+            try {
+                const resp = await fetch('/api/dashboard/sessions/');
+                const json = await resp.json();
+                if (json.success) this.activeSessions = json.data;
+            } catch(e) { console.error('Sessions refresh failed:', e); }
+        },
+
+        async refreshTerminal() {
+            try {
+                const resp = await fetch('/api/terminal/status/');
+                const json = await resp.json();
+                if (json.success) this.terminal = json.data.heartbeats || [];
+            } catch(e) { console.error('Terminal refresh failed:', e); }
+        },
+
+        async refreshBrain() {
+            try {
+                const resp = await fetch('/api/brain/stats/');
+                const json = await resp.json();
+                if (json.success) {
+                    this.brain = { ...this.brain, ...json.data };
+                }
+            } catch(e) { console.error('Brain refresh failed:', e); }
+            try {
+                const resp = await fetch('/api/brain/consolidation-history/');
+                const json = await resp.json();
+                if (json.success && json.data.logs.length > 0) {
+                    this.brain.last_consolidation = json.data.logs[0].started_at;
+                    this.brain.entries_since_consolidation = json.data.gate_status.entries_since_last;
+                }
+            } catch(e) { /* consolidation history not critical */ }
+        },
+
+        async refreshDiary() {
+            try {
+                const resp = await fetch('/api/brain/diary/stats/');
+                const json = await resp.json();
+                if (json.success) {
+                    this.diary.total_entries = json.data.total_entries;
+                    this.diary.total_words = json.data.total_words;
+                    this.diary.last_entry_date = json.data.date_range.last;
+                }
+            } catch(e) { /* diary stats not critical */ }
+            try {
+                const resp = await fetch('/api/brain/diary/recent/?days=7');
+                const json = await resp.json();
+                if (json.success) {
+                    this.diary.entries_this_week = json.data.total;
+                }
+            } catch(e) { /* recent not critical */ }
+        },
+
+        async refreshHandoff() {
+            try {
+                const resp = await fetch('/api/brain/handoffs/latest/');
+                const json = await resp.json();
+                if (json.success && json.data.handoff) {
+                    this.handoff = { ...this.handoff, ...json.data.handoff };
+                }
+            } catch(e) { /* handoff card not critical */ }
+        },
+
+        async refreshSpend() {
+            try {
+                const resp = await fetch('/spend/api/summary/');
+                const json = await resp.json();
+                if (json.success) this.spendData = json.data;
+            } catch(e) { console.error('Spend refresh failed:', e); }
+        },
+
+        async refreshAlerts() {
+            try {
+                const resp = await fetch('/api/intelligence/alerts/');
+                const json = await resp.json();
+                if (json.success) this.alerts = (json.data.alerts || []).slice(0, 5);
+            } catch(e) { console.error('Alerts refresh failed:', e); }
+        },
+
+        async runConsolidate(ctx) {
+            ctx.consolidating = true;
+            try {
+                const resp = await fetch('/api/brain/consolidate/?force=true', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' },
+                });
+                const json = await resp.json();
+                if (json.success) {
+                    ctx.lastResult = json.data;
+                    this.refreshBrain();
+                }
+            } catch(e) {
+                console.error('Consolidation failed:', e);
+            } finally {
+                ctx.consolidating = false;
+            }
+        },
+
+        async generateBrief(scope, ctx) {
+            ctx.generating = true;
+            try {
+                const resp = await fetch('/api/brain/brief/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' },
+                    body: JSON.stringify({ scope }),
+                });
+                const json = await resp.json();
+                if (json.success) {
+                    ctx.briefText = json.data.brief;
+                    ctx.showBrief = true;
+                }
+            } catch(e) {
+                console.error('Brief generation failed:', e);
+            } finally {
+                ctx.generating = false;
+            }
+        },
+
+        async refreshReviewAlerts() {
+            try {
+                const resp = await fetch('/api/alerts/reviews/summary/');
+                const json = await resp.json();
+                if (json.success) this.reviewAlerts = (json.data.alerts || []).slice(0, 5);
+            } catch(e) { console.error('Review alerts refresh failed:', e); }
+        },
+
+        async refreshTeams() {
+            try {
+                const resp = await fetch('/api/teams/active/');
+                const json = await resp.json();
+                if (json.success) this.activeTeams = json.data.teams || [];
+            } catch(e) { console.error('Teams refresh failed:', e); }
+        },
+
+        async refreshPrompts() {
+            try {
+                const resp = await fetch('/api/prompts/stats/');
+                const json = await resp.json();
+                if (json.success) this.promptStats = json.data;
+            } catch(e) { /* Prompt stats not critical */ }
+            try {
+                const resp = await fetch('/api/prompts/queue/');
+                const json = await resp.json();
+                if (json.success) {
+                    if (json.data.prompts.length > 0) {
+                        const p = json.data.prompts[0];
+                        this.nextPrompt = p.title + ' (' + p.complexity + ')';
+                    } else {
+                        this.nextPrompt = '';
+                    }
+                }
+            } catch(e) { /* Queue not critical */ }
+        },
+
+        async refreshSmartWatch() {
+            try {
+                const resp = await fetch('/api/intelligence/smart-watch/status/');
+                const json = await resp.json();
+                if (json.success) this.smartWatch = json.data;
+            } catch(e) { /* Smart Watch not critical */ }
+        },
+
+        async markAllReviewsRead() {
+            try {
+                const resp = await fetch('/api/alerts/reviews/read/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' },
+                    body: JSON.stringify({ all: true }),
+                });
+                const json = await resp.json();
+                if (json.success) this.reviewAlerts = [];
+            } catch(e) { console.error('Mark read failed:', e); }
+        },
+
+        reviewBadge(r) {
+            const names = { coderabbit: 'CodeRabbit', copilot: 'Copilot', gemini: 'Gemini', ci: 'CI', human: 'Human' };
+            return names[r.reviewer] || r.reviewer;
+        },
+
+        reviewAction(r) {
+            return r.status.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+        },
+
+        timeAgo(iso) {
+            const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+            if (diff < 60) return 'just now';
+            if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+            return Math.floor(diff / 86400) + 'd ago';
+        },
+
+        sessionDuration(startedAt) {
+            const start = new Date(startedAt);
+            const diff = Math.floor((Date.now() - start) / 1000);
+            const h = Math.floor(diff / 3600);
+            const m = Math.floor((diff % 3600) / 60);
+            if (h > 0) return h + 'h ' + m + 'm';
+            return m + 'm';
+        },
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Contacts — CRM — NockCC{% endblock %}
+
+{% block content %}
+<div>
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">Contacts</h1>
+    <div class="flex items-center gap-3">
+      <a href="{% url 'crm:contact-create' %}" class="bg-brand-500 hover:bg-brand-500/80 text-white text-xs px-3 py-1.5 rounded-md transition">+ New Contact</a>
+      <a href="{% url 'crm:pipeline' %}" class="text-xs text-gray-400 hover:text-white transition">Pipeline</a>
+    </div>
+  </div>
+
+  <form method="get" class="mb-6">
+    <input type="text" name="q" value="{{ search }}" placeholder="Search contacts..."
+           class="bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-sm text-gray-300 w-64">
+    <button type="submit" class="bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-2 rounded-md transition ml-2">Search</button>
+  </form>
+
+  <div class="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-700 text-xs text-gray-400 uppercase tracking-wider">
+            <th class="text-left px-4 py-3">Name</th>
+            <th class="text-left px-4 py-3">Company</th>
+            <th class="text-left px-4 py-3 hidden sm:table-cell">Email</th>
+            <th class="text-left px-4 py-3 hidden md:table-cell">Role</th>
+            <th class="text-right px-4 py-3">Deals</th>
+            <th class="text-right px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-700/50">
+          {% for contact in contacts %}
+          <tr class="hover:bg-gray-700/30 transition">
+            <td class="px-4 py-3 text-gray-200 text-sm">{{ contact.name }}</td>
+            <td class="px-4 py-3 text-gray-400 text-xs">{{ contact.company|default:"—" }}</td>
+            <td class="px-4 py-3 text-gray-400 text-xs hidden sm:table-cell">{{ contact.email|default:"—" }}</td>
+            <td class="px-4 py-3 text-gray-400 text-xs hidden md:table-cell">{{ contact.role|default:"—" }}</td>
+            <td class="px-4 py-3 text-gray-400 text-xs text-right">{{ contact.deal_count }}</td>
+            <td class="px-4 py-3 text-right">
+              <a href="{% url 'crm:contact-edit' contact.pk %}" class="text-xs text-brand-500 hover:text-brand-500/80">Edit</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="px-4 py-8 text-center text-gray-600">No contacts yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
