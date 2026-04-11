@@ -63,3 +63,4 @@ desktop/node_modules/
 
 # Workflow state checkpoint (never committed)
 .workflow-state.json
+nock-command-center/
