@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Profile — Nock Dashboard{% endblock %}
+
+{% block content %}
+<div class="ncc-page-header">
+    <div>
+        <h1 class="ncc-page-title">Your Profile</h1>
+        <p class="text-sm text-secondary" style="margin-top: var(--space-1);">Account details and subscription</p>
+    </div>
+</div>
+
+<div style="max-width: 560px;">
+    <div class="ncc-card" style="margin-bottom: var(--space-4);">
+        <div class="ncc-card-header">
+            <span class="ncc-card-label">Account</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-3);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="text-sm text-secondary">Email</span>
+                <span class="text-sm" style="color: var(--text-primary);">{{ user.email }}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="text-sm text-secondary">Member since</span>
+                <span class="text-sm" style="color: var(--text-primary);">{{ user.date_joined|date:"N j, Y" }}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="text-sm text-secondary">Last login</span>
+                <span class="text-sm" style="color: var(--text-primary);">
+                    {% if user.last_login %}{{ user.last_login|date:"N j, Y g:i A" }}{% else %}—{% endif %}
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="ncc-card" style="margin-bottom: var(--space-4);">
+        <div class="ncc-card-header">
+            <span class="ncc-card-label">Subscription</span>
+        </div>
+        <div style="margin-top: var(--space-3);">
+            <p class="text-sm text-muted">
+                Subscription management is coming in the next release.
+                Your account is currently on the free tier.
+            </p>
+        </div>
+    </div>
+
+    <div style="display: flex; gap: var(--space-3);">
+        <a href="{% url 'account_change_password' %}" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Change Password</a>
+        <a href="{% url 'account_logout' %}" class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="color: var(--text-muted);">Sign Out</a>
+    </div>
+</div>
+{% endblock %}
