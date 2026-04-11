@@ -273,7 +273,56 @@ AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
 ]
 
-# django-axes: brute-force login protection
+# ── django-allauth configuration ────────────────────────────────────────────
+# Authentication method: email-only (no usernames). New accounts get a
+# system-generated username internally via allauth's username adapter;
+# we don't expose it anywhere in the UI.
+# allauth 65.x renamed several settings; using the current API here:
+ACCOUNT_LOGIN_METHODS = {"email"}          # replaces ACCOUNT_AUTHENTICATION_METHOD
+ACCOUNT_SIGNUP_FIELDS = [                  # replaces ACCOUNT_EMAIL_REQUIRED +
+    "email*",                              #   ACCOUNT_USERNAME_REQUIRED
+    "password1*",
+    "password2*",
+]
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None   # suppress allauth's username field
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"   # user must verify before first login
+
+# Always use HTTPS for password-reset and email-verification links.
+# Set to "http" for local dev if you prefer, but prod must be "https".
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
+
+# Allauth-side rate limits (belt-and-suspenders alongside django-axes).
+# These throttle allauth's own views; axes handles IP lockout afterward.
+# Values are "<count>/<window>" strings; None disables a specific limit.
+ACCOUNT_RATE_LIMITS = {
+    "login_failed": "5/5m",      # 5 failed logins per 5 minutes per IP
+    "signup": "10/h",             # 10 signups per hour per IP
+    "send_email": "5/5m",         # 5 verification/reset emails per 5 min
+    "confirm_email": "10/m",      # 10 email-confirm attempts per minute
+    "change_password": "5/5m",    # 5 password-change attempts per 5 min
+    "reset_password": "5/5m",     # 5 password-reset requests per 5 min
+    "reset_password_from_key": "5/5m",
+}
+
+# Email backend — env-var driven so any SMTP provider drops in at PR 6.
+# Dev uses the console backend (prints emails to stdout; copy the
+# verification link from runserver logs). Prod sets EMAIL_BACKEND to
+# "django.core.mail.backends.smtp.EmailBackend" + the SMTP credentials
+# for whichever provider is chosen (Resend / SendGrid / Postmark /
+# Mailgun / SES — all speak SMTP, all drop in here with zero code
+# changes). See CHANGELOG for the provider-selection decision.
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@localhost")
+
+# ── django-axes: brute-force login protection ────────────────────────────────
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = timedelta(minutes=15)
 AXES_LOCKOUT_TEMPLATE = "accounts/locked.html"
