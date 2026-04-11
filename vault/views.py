@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -14,6 +15,10 @@ from .forms import DocumentForm
 from .models import Document, SessionReport
 
 
+MAX_CONTENT_LENGTH = 50_000
+TRUNCATION_MESSAGE = "\n\n[Truncated at 50KB]"
+
+
 @require_GET
 @login_required
 def document_list(request: HttpRequest) -> HttpResponse:
@@ -24,7 +29,7 @@ def document_list(request: HttpRequest) -> HttpResponse:
     if category:
         qs = qs.filter(category=category)
     if search:
-        qs = qs.filter(title__icontains=search) | qs.filter(tags__icontains=search)
+        qs = qs.filter(Q(title__icontains=search) | Q(tags__icontains=search))
 
     return render(request, "vault/list.html", {
         "documents": qs,
@@ -137,8 +142,8 @@ def _create_report(request: HttpRequest) -> JsonResponse:
         )
 
     # Truncate content at 50KB to prevent abuse
-    if len(content) > 50_000:
-        content = content[:50_000] + "\n\n[Truncated at 50KB]"
+    if len(content) > MAX_CONTENT_LENGTH:
+        content = content[:MAX_CONTENT_LENGTH] + TRUNCATION_MESSAGE
 
     captured_at_str = body.get("captured_at", "")
     captured_at = None
