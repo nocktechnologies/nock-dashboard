@@ -31,7 +31,12 @@ urlpatterns = [
     path("context/", include("context.urls", namespace="context")),
     path("spend/", include("spend.urls", namespace="spend")),
     path("notifications/", include("notifications.urls", namespace="notifications")),
-    path("accounts/", include("accounts.urls", namespace="accounts")),
+    # All auth flows (login, signup, logout, password reset, email verify)
+    # owned by django-allauth. The /accounts/profile/ view is mounted as
+    # a direct path in CP5 (accounts/views.py re-populated by then) and
+    # must come BEFORE this include so it isn't swallowed by allauth's
+    # catch-all URL patterns.
+    path("accounts/", include("allauth.urls")),
     path("remote/", include("remote.urls", namespace="remote")),
     path("vault/", include("vault.urls", namespace="vault")),
     path("crm/", include("crm.urls", namespace="crm")),
