@@ -30,7 +30,7 @@ class AxesAllauthIntegrationTests(TestCase):
 
     def _attempt_login(self, password: str) -> int:
         resp = self.client.post(self.login_url, {
-            "login": "axes@example.com",
+            "login": self.user.email,
             "password": password,
         })
         return resp.status_code

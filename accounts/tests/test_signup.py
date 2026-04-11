@@ -42,7 +42,7 @@ class SignupPageTests(TestCase):
         # duplicate emails to avoid leaking which addresses are registered
         self.assertIn(resp.status_code, [200, 302])
         # Either way, no duplicate user was created
-        self.assertFalse(User.objects.filter(email="taken@example.com").count() > 1)
+        self.assertLessEqual(User.objects.filter(email="taken@example.com").count(), 1)
 
     def test_weak_password_rejected(self):
         resp = self.client.post(self.url, {

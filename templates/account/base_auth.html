@@ -185,9 +185,14 @@
             border: none;
             border-radius: var(--radius-md);
             cursor: pointer;
-            transition: all 200ms ease;
+            transition: background 200ms ease, box-shadow 200ms ease;
             margin-top: var(--space-2);
             letter-spacing: 0.02em;
+        }
+
+        .login-submit:active {
+            transform: scale(0.97);
+            transition: transform 100ms ease-out;
         }
 
         @media (hover: hover) {
@@ -239,6 +244,13 @@
         .circuit-node:nth-child(4) { animation-delay: 1.5s; }
         .circuit-node:nth-child(5) { animation-delay: 2s; }
         .circuit-node:nth-child(6) { animation-delay: 0.8s; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .circuit-node,
+            .login-card::before {
+                animation: none;
+            }
+        }
     </style>
 </head>
 <body>

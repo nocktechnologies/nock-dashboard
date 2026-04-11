@@ -48,7 +48,10 @@
 
     <div style="display: flex; gap: var(--space-3);">
         <a href="{% url 'account_change_password' %}" class="ncc-btn ncc-btn-ghost ncc-btn-sm">Change Password</a>
-        <a href="{% url 'account_logout' %}" class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="color: var(--text-muted);">Sign Out</a>
+        <form method="post" action="{% url 'account_logout' %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="ncc-btn ncc-btn-ghost ncc-btn-sm" style="color: var(--text-muted);">Sign Out</button>
+        </form>
     </div>
 </div>
 {% endblock %}

@@ -18,7 +18,7 @@
 {% else %}
 <div class="ncc-alert ncc-alert-error">
     This email confirmation link is invalid or has expired.
-    <a href="{% url 'account_email_verification_sent' %}" style="color:inherit;text-decoration:underline;">Send a new confirmation email.</a>
+    <a href="{% if user.is_authenticated %}{% url 'account_email' %}{% else %}{% url 'account_signup' %}{% endif %}" style="color:inherit;text-decoration:underline;">Request a new confirmation email.</a>
 </div>
 {% endif %}
 {% endblock %}

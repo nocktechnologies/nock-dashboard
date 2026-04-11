@@ -32,7 +32,7 @@ class LoginPageTests(TestCase):
             "login": "login@example.com",
             "password": "LoginPass123!",
         })
-        self.assertIn(resp.status_code, [302])
+        self.assertEqual(resp.status_code, 302)
         self.assertRedirects(resp, "/", fetch_redirect_response=False)
 
     def test_invalid_credentials_show_error(self):

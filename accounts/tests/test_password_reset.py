@@ -31,11 +31,11 @@ class PasswordResetPageTests(TestCase):
 
     def test_unknown_email_does_not_leak_user_existence(self):
         """Allauth should not reveal whether an email is registered."""
-        resp = self.client.post(self.url, {"email": "nobody@example.com"})
-        # allauth responds with a redirect (not an error) to avoid enumeration
-        self.assertIn(resp.status_code, [302])
-        # allauth intentionally sends to unknown addresses for anti-enumeration;
-        # the important thing is the response is indistinguishable from a real one
+        known = self.client.post(self.url, {"email": "reset@example.com"})
+        unknown = self.client.post(self.url, {"email": "nobody@example.com"})
+        # Both responses must be indistinguishable — same status and redirect target
+        self.assertEqual(unknown.status_code, known.status_code)
+        self.assertEqual(unknown["Location"], known["Location"])
 
     def test_done_page_renders(self):
         resp = self.client.get(reverse("account_reset_password_done"))

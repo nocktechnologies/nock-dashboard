@@ -295,14 +295,18 @@ ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
 # These throttle allauth's own views; axes handles IP lockout afterward.
 # Values are "<count>/<window>" strings; None disables a specific limit.
 ACCOUNT_RATE_LIMITS = {
-    "login_failed": "5/5m",      # 5 failed logins per 5 minutes per IP
-    "signup": "10/h",             # 10 signups per hour per IP
-    "send_email": "5/5m",         # 5 verification/reset emails per 5 min
-    "confirm_email": "10/m",      # 10 email-confirm attempts per minute
-    "change_password": "5/5m",    # 5 password-change attempts per 5 min
-    "reset_password": "5/5m",     # 5 password-reset requests per 5 min
-    "reset_password_from_key": "5/5m",
+    "login_failed": "5/5m",           # 5 failed logins per 5 minutes per IP
+    "signup": "10/h",                  # 10 signups per hour per IP
+    "manage_email": "5/5m",            # 5 email-management actions per 5 min
+    "confirm_email": "10/m",           # 10 email-confirm attempts per minute
+    "change_password": "5/5m",         # 5 password-change attempts per 5 min
+    "reset_password": "5/5m",          # 5 password-reset requests per 5 min
+    "reset_password_from_key": "5/5m", # 5 password-reset-from-key attempts per 5 min
 }
+
+# Behind Railway's reverse proxy — tell allauth to trust one hop so
+# rate-limiting sees the real client IP rather than Railway's proxy IP.
+ALLAUTH_TRUSTED_PROXY_COUNT = 1
 
 # Email backend — env-var driven so any SMTP provider drops in at PR 6.
 # Dev uses the console backend (prints emails to stdout; copy the
