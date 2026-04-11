@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from brain import diary_views, views_handoffs, views_identity, views_research
+from brain import views_handoffs, views_research
 from brain import views as brain_views
 from core.oauth.urls import oauth_urlpatterns, wellknown_urlpatterns
 from crm.views import contacts_api, deals_api
@@ -90,11 +90,6 @@ urlpatterns = [
     path("api/remote/conversations/<int:conversation_id>/", remote_views.conversation_detail, name="remote-conversation-detail-api"),
     path("api/remote/conversations/<int:conversation_id>/send/", remote_views.conversation_send, name="remote-conversation-send-api"),
     # Mobile API — Brain endpoints at /api/brain/
-    path("api/brain/diary/", diary_views.diary_list_create, name="brain-diary-api"),
-    path("api/brain/diary/stats/", diary_views.diary_stats, name="brain-diary-stats-api"),
-    path("api/brain/diary/recent/", diary_views.diary_recent, name="brain-diary-recent-api"),
-    path("api/brain/diary/brief/", diary_views.diary_brief, name="brain-diary-brief-api"),
-    path("api/brain/diary/<int:entry_id>/", diary_views.diary_detail, name="brain-diary-detail-api"),
     path("api/brain/entries/", brain_views.entries_list_create, name="brain-entries-api"),
     path("api/brain/entries/<int:entry_id>/", brain_views.entry_detail, name="brain-entry-detail-api"),
     path("api/brain/categories/", brain_views.categories_list, name="brain-categories-api"),
@@ -103,17 +98,12 @@ urlpatterns = [
     path("api/brain/consolidate/", brain_views.consolidate, name="brain-consolidate-api"),
     path("api/brain/consolidation-history/", brain_views.consolidation_history, name="brain-consolidation-history-api"),
     path("api/brain/morning-note/test/", brain_views.send_test_morning_note, name="brain-morning-note-test-api"),
-    # Session Handoffs API — operational state per context (separate from Diary)
+    # Session Handoffs API — operational state per context
     path("api/brain/handoffs/", views_handoffs.handoffs_list, name="brain-handoffs-api"),
     path("api/brain/handoffs/latest/", views_handoffs.handoffs_latest, name="brain-handoffs-latest-api"),
     path("api/brain/handoffs/<str:context>/", views_handoffs.handoff_detail, name="brain-handoff-detail-api"),
     path("api/brain/handoffs/<str:context>/history/", views_handoffs.handoff_history, name="brain-handoff-history-api"),
-    # Identity Document API
-    path("api/brain/identity/", views_identity.identity_list_create, name="brain-identity-api"),
-    path("api/brain/identity/boot/", views_identity.identity_boot, name="brain-identity-boot-api"),
-    path("api/brain/identity/<slug:slug>/", views_identity.identity_detail, name="brain-identity-detail-api"),
-    path("api/brain/identity/<slug:slug>/history/", views_identity.identity_history, name="brain-identity-history-api"),
-    # Research Library API — semantic search over Mara's knowledge corpus
+    # Research Library API — semantic search over the user's knowledge corpus
     path("api/brain/research/search/", views_research.research_search, name="brain-research-search-api"),
     path("api/brain/research/documents/", views_research.research_documents_list, name="brain-research-docs-api"),
     path("api/brain/research/documents/<slug:slug>/", views_research.research_document_detail, name="brain-research-doc-detail-api"),

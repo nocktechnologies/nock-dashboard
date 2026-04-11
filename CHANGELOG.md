@@ -1,8 +1,65 @@
 # Changelog
 
-All notable changes to NockCC are documented here. Organized by PR/merge to main.
+All notable changes to Nock Dashboard (the product fork of NockCC) are
+documented here. Organized by PR/merge to main.
 
 ---
+
+# Nock Dashboard — Product Fork
+
+The following entries describe work on `nocktechnologies/nock-dashboard`,
+the multi-tenant SaaS product fork of NockCC. The product fork has its
+own independent history starting 2026-04-11 and will **not** sync
+upstream to `kkwills13/nock-command-center`. The NockCC inherited history
+is preserved below the `--- Inherited from NockCC ---` separator for
+archaeological reference, and will be progressively rewritten for the
+product fork context in PR 6 (Docs + deployment).
+
+---
+
+## [Unreleased] — 2026-04-11
+
+### Changed
+- **Strip personal layers** (in progress, `feature/strip-personal-layers`) — delete the diary / identity-document / Mara-Kevin-specific continuity surface from the fork so the remaining code becomes a generic multi-tenant product base for PR 2 (auth) and PR 3 (data isolation). Layered execution with one commit per checkpoint; see `.claude/decisions/PR-1-strip-personal-layers.md` for the full plan and per-checkpoint rationale.
+  - **Models deleted**: `DiaryEntry`, `IdentityDocument`, `IdentityDocumentVersion` (and their associated `Category`/`Source`/`DOCUMENT_TYPES` choices) removed from `brain/models.py`. `MemoryEntry`, `ConsolidationLog`, `MorningNoteSent`, `HandoffEntry`, `HandoffVersion`, `ResearchDocument`, `ResearchChunk` all kept as-is — they are product-grade features
+  - **URLs / routing**: 5 `/api/brain/diary/*` routes and 4 `/api/brain/identity/*` routes deleted from `config/urls.py`; `/brain/diary/` page route deleted from `brain/urls.py`; `diary_views` and `views_identity` imports removed
+  - **View modules deleted**: `brain/diary_views.py` (446 lines, all diary API + browser), `brain/views_identity.py` (identity CRUD + `/boot` endpoint)
+  - **Templates deleted**: `brain/templates/brain/diary.html`
+  - **Management commands deleted**: `brain/management/commands/migrate_diary_from_asana.py`, `brain/management/commands/seed_identity.py` (the MARA_CORE / KEVIN_CORE / FUZZY seed)
+  - **Tests deleted**: `brain/tests/test_diary.py` (636 lines, 57 tests), `brain/tests/test_identity.py` (614 lines, 50 tests)
+  - **Tests retargeted**: `brain/tests/test_security.py` now targets `/api/brain/entries/` (MemoryEntry endpoint) instead of the removed diary endpoint. Preserves the 10 auth / CORS / rate-limit / CSRF assertions; the 4 date-parameter-validation tests were dropped because the memory endpoint has no date filter equivalent. Net: 14 → 10 security tests
+  - **Tests cleaned up for seed no-ops**: `brain/tests/test_continuity.py::ContinuitySeedTest` and `brain/tests/test_views.py::SeedDataTest` deleted — they asserted the presence of personal seed data that the 0002 and 0004 migrations no longer install
+  - **Dashboard sidebar test**: `dashboard/tests/test_pm_views.py::SidebarNavTests::test_sidebar_includes_diary_research_projects` renamed to `test_sidebar_includes_research_projects` and the `/brain/diary/` assertion dropped
+  - **Dashboard home card**: the "Mara's Diary" stats sub-section removed from `dashboard/templates/dashboard/index.html` (including the `diary` Alpine state + `refreshDiary()` method + corresponding `fetch()` calls). It was a sub-section inside the Brain card rather than a standalone grid cell, so removing it just shortens the card — no grid hole, no replacement needed
+  - **Sidebar nav**: the Diary link removed from `templates/base.html`
+  - **Branding sweep across code**: `brain/apps.py` verbose_name `"Mara's Brain"` → `"Brain"`; `brain/templates/brain/index.html` page title; `brain/templates/brain/handoffs.html` empty-state helper text; `brain/services.py::MorningNoteGenerator` docstring + header string (`"Mara's Morning Note"` → `"Morning Note"`); `brain/services.py` `"diary"` source filter drops out of the confidence-promotion logic; `brain/views_research.py` docstring; `brain/management/commands/ingest_research.py` docstring and usage examples; `brain/models.py` `ResearchDocument` docstring; `config/settings/base.py` celery-beat schedule comment; `tasks/views_api.py` module docstring
+  - **Intelligence layer prompts generalized**: `intelligence/services.py::generate_morning_question` no longer says "You are Mara, generating a question for Kevin's morning commute"; `intelligence/tasks.py::generate_weekly_memo` no longer opens with "Chief of Staff for Nock Technologies...Kevin Wills"; `intelligence/views.py::_build_advisor_system_prompt` no longer says "AI Business Advisor for Nock Technologies founded by Kevin Wills". All three now use generic "user's business" framing while preserving the same memory query + six-section memo structure
+  - **Teams overflow notifications**: `teams/views.py` and `teams/signals.py` Telegram alerts `"exceeded max review cycles — needs Kevin"` → `"needs review"`
+  - **Claude project doc deleted**: `.claude/SKILL_IN_CHAT_HANDOFF.md` (142-line Mara-specific handoff skill). The product uses the `HandoffEntry` model for operational state tracking; this doc has no meaning in the fork
+  - **Migration chain rewrite**: the 10-migration brain chain collapses to 7. `0006_diary_entry`, `0007_fix_diary_entry_indexes`, and `0008_identity_documents` are deleted. `0002_seed_memory_entries` and `0004_seed_continuity_entries` are replaced with empty no-op content at the same migration numbers (preserves chain linearity, no renumbering cascade). `0009_research_library` is renamed to `0006_research_library` and its dependency retargeted to `0005_morning_note_sent`. `0010_handoffentry_handoffversion` is renamed to `0007_handoffentry_handoffversion` and its dependency retargeted to `0006_research_library`. **Safe** because there is no production database for nock-dashboard yet (fresh Railway project comes in PR 6) and the local dev DB was switched off the shared `nockcc_db` before the rewrite. **Anyone checking out the fork must run `dropdb nock_dashboard_dev && createdb nock_dashboard_dev && python manage.py migrate` once** to pick up the rewritten chain
+
+### Known issues (not fixed in PR 1 — flagged for follow-up)
+
+- `pytest.ini` `testpaths` includes `brain/tests` implicitly only when `pytest brain/tests` is invoked explicitly. Default `pytest` runs skip the brain test suite entirely. Latent CI coverage hole, present at baseline, scope for a later cleanup PR
+- `pytest.ini` `testpaths` lists `mcp_server/tests` but the `mcp_server/` directory does not exist in the fork (pre-existing gap — the MCP server was not copied from nock-cc at fork time). pytest silently skips the missing path. The MCP server is scoped for a later PR when we decide whether the product fork gets the MCP transport at launch or as a post-launch feature
+- The two timezone-dependent pre-existing test failures in `pipeline/tests/test_review_alerts.py::TelegramNotifierTests::{test_not_quiet_hours,test_quiet_hours_midnight_crossing}` continue to fail on this branch. They were failing at baseline on `main@40045de` and are unrelated to the strip. Out of scope
+- Docs deliberately deferred: `README.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `CODEX.md`, `DESIGN_CLAUDE_COMMAND_CENTER.md`, and `docs/superpowers/**` all still reference Mara/Kevin/diary in historical and design content. Rewriting them in PR 1 would explode the diff. **PR 6 (Docs + deployment) owns all of these**. The CHANGELOG (this file) is the only doc that gets updated in PR 1
+- `remote/management/commands/create_agent_token.py:18` has a placeholder CLI help example string `"Kevin's MacBook"` that came over from PR 0's verbatim app copy. Flagged during PR 0 for the strip to address; the string is benign (just a CLI example placeholder) and kept intentionally unchanged here — PR 6 will sanitize it as part of the branding sweep
+
+## [0.1 — 2026-04-11] — Fork Backfill + Pipeline Tracking
+
+### Added
+- **`chore(fork)`: backfill `notifications/`, `remote/`, `vault/`** — these three Django apps were listed in `INSTALLED_APPS` but their directories were never copied from `nock-command-center/` during the initial fork. Until this PR, every Django runtime in nock-dashboard was resolving those imports to `/Users/kevin/Dev/nock-command-center/` on the local filesystem, so the fork was partially running on the source repo. Discovered during PR 1's baseline verification. rsynced verbatim from nock-cc, then migrations + tests confirmed against a fresh Postgres database. Also generated two missing migrations for pre-existing model drift that was hidden by the wrong-module resolution (`context/0002_alter_contextsnapshot_options.py`, `notifications/0002_alter_notificationrule_trigger_event.py`). Fixed one inherited stale test (`remote/tests/test_pages.py::BaseTemplateTest::test_mobile_bottom_nav_present` was asserting a Tailwind class that pre-dated a template refactor). See nocktechnologies/nock-dashboard#1 for the full walkthrough and the gemini+coderabbit review artifacts
+- **`nocktechnologies/nock-dashboard` registered in NockCC pipeline tracking** — GitHub webhook created on the repo (hook id 605029736 → `https://cc.nocktechnologies.io/webhooks/github/`, shared `GITHUB_WEBHOOK_SECRET`, events: `check_run, check_suite, pull_request, pull_request_review, pull_request_review_comment, push`), corresponding `Repository` row written to the striking-serenity production database, and `pipeline/management/commands/register_repos.py` updated in nock-command-center (PR kkwills13/nock-command-center#75) to keep the source of truth in sync with reality. CodeRabbit, Claude GitHub App, and Gemini all auto-apply to the new repo via org-level GitHub App install with `repository_selection: "all"` — no additional review-tool setup required
+
+### Changed
+- **`chore`: remove nested nock-command-center submodule from fork working tree** — the initial fork commit had an accidental `nock-command-center` gitlink (mode 160000) pointing at nock-cc's latest commit, which would have shown up in every diff until it was untracked. `git rm --cached nock-command-center` + `.gitignore` entry for `nock-command-center/`
+
+---
+
+*--- Inherited from NockCC ---*
+
+*The entries below describe work on the upstream `kkwills13/nock-command-center` personal command center prior to the 2026-04-11 product fork. They are preserved for archaeological context and will be rewritten or trimmed in PR 6 (Docs + deployment) as part of the product fork documentation sweep.*
 
 ## [Unreleased] — 2026-04-10
 

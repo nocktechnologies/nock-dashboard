@@ -12,7 +12,7 @@ Write flow — MUST stay Asana-first:
     4. if Asana fails   -> return error, DO NOT touch local DB
 
 The cross-project read endpoints hit local DB only — they are designed to
-feed Mara's morning briefs / heartbeat crons, so they need to be fast and
+feed the morning-brief and heartbeat crons, so they need to be fast and
 must not fan out to Asana.
 """
 from __future__ import annotations

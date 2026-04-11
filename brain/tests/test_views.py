@@ -316,23 +316,6 @@ class AuthTest(TestCase):
         self.assertEqual(resp.status_code, 401)
 
 
-class SeedDataTest(TestCase):
-    """Verify seed migration created 21 entries."""
-
-    def test_seed_entry_count(self) -> None:
-        count = MemoryEntry.objects.filter(source="seed").count()
-        self.assertEqual(count, 21)
-
-    def test_seed_categories(self) -> None:
-        self.assertEqual(MemoryEntry.objects.filter(source="seed", category="identity").count(), 5)
-        self.assertEqual(MemoryEntry.objects.filter(source="seed", category="relationship").count(), 4)
-        self.assertEqual(MemoryEntry.objects.filter(source="seed", category="domain").count(), 3)
-        self.assertEqual(MemoryEntry.objects.filter(source="seed", category="decision").count(), 3)
-        self.assertEqual(MemoryEntry.objects.filter(source="seed", category="project").count(), 3)
-        self.assertEqual(MemoryEntry.objects.filter(source="seed", category="lesson").count(), 2)
-        self.assertEqual(MemoryEntry.objects.filter(source="seed", category="tool").count(), 1)
-
-
 class MemoryEntryModelTest(TestCase):
 
     def setUp(self) -> None:

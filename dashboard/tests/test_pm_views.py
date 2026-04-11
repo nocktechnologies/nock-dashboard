@@ -150,10 +150,11 @@ class SidebarNavTests(TestCase):
         )
         self.client.force_login(self.user)
 
-    def test_sidebar_includes_diary_research_projects(self) -> None:
+    def test_sidebar_includes_research_projects(self) -> None:
         # The brain index page extends base.html, so the sidebar renders.
+        # The Diary nav item was removed in the product-fork strip (PR 1);
+        # only Research and the PM plugin are asserted here.
         response = self.client.get(reverse("brain:index"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'href="/brain/diary/"')
         self.assertContains(response, 'href="/brain/research/"')
         self.assertContains(response, 'href="/pm/"')

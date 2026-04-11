@@ -1,6 +1,6 @@
 # brain/views_research.py
 """
-Research Library API — semantic search over Mara's research corpus.
+Research Library API — semantic search over the user's research corpus.
 
 Endpoints (all gated by require_brain_access):
     GET  /api/brain/research/search/?q=...&limit=10&topic=...
@@ -224,9 +224,7 @@ def research_document_detail(request: HttpRequest, slug: str) -> JsonResponse:
     so object-level "can this user see this slug?" collapses to "does the slug
     exist?" as a matter of design, not oversight.
 
-    This mirrors the pattern in `brain/views_identity.py::identity_detail` and
-    `brain/diary_views.py::diary_detail`, which hit the same shared-corpus
-    model. If the research library ever grows per-topic ACLs, a private flag,
+    If the research library ever grows per-topic ACLs, a private flag,
     or user-scoped visibility, the filter belongs here (e.g. on an
     `is_active` / `accessible_for(request.user)` queryset method).
     """

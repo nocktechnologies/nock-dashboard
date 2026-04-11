@@ -34,7 +34,7 @@ def drop_embedding_index(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('brain', '0008_identity_documents'),
+        ('brain', '0005_morning_note_sent'),
     ]
 
     operations = [

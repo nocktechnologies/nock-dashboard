@@ -150,7 +150,7 @@ class BrainConsolidator:
         promoted = 0
         inferred = recent_entries.filter(confidence="inferred")
         for entry in inferred:
-            if len(entry.tags) >= 2 or entry.source in ("session", "diary"):
+            if len(entry.tags) >= 2 or entry.source in ("session",):
                 entry.confidence = "observed"
                 entry.save(update_fields=["confidence"])
                 promoted += 1
@@ -237,7 +237,7 @@ def _escape_markdown(text: str) -> str:
 
 
 class MorningNoteGenerator:
-    """Generate Mara's Morning Note for Telegram."""
+    """Generate the daily Morning Note for Telegram."""
 
     def generate(self) -> str | None:
         thinking = self._get_thinking_section()
@@ -246,7 +246,7 @@ class MorningNoteGenerator:
 
         date_str = timezone.now().strftime("%B %d, %Y").replace(" 0", " ")
 
-        note = f"\u2600\ufe0f *Mara's Morning Note* \u2014 {date_str}\n\n"
+        note = f"\u2600\ufe0f *Morning Note* \u2014 {date_str}\n\n"
         note += f"*What I'm thinking about:*\n{thinking}\n\n"
         note += f"*What matters today:*\n{matters}\n\n"
         note += f"*A question for your commute:*\n{question}"

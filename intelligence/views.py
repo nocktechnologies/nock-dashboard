@@ -281,8 +281,7 @@ def advisor_chat_api(request: HttpRequest) -> HttpResponse:
 def _build_advisor_system_prompt(snapshot: BusinessSnapshot | None) -> str:
     """Build the system prompt for the AI advisor."""
     base = (
-        "You are the AI Business Advisor for Nock Technologies, a bootstrapped "
-        "commercial finance technology company founded by Kevin Wills.\n\n"
+        "You are the AI Business Advisor for this user's business.\n\n"
         "You have access to real business data and can answer questions about "
         "finances, CRM deals, development velocity, operations, and strategy.\n\n"
         "Guidelines:\n"

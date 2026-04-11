@@ -73,9 +73,8 @@ def generate_weekly_memo() -> dict:
     from . import ai_client
 
     system_prompt = (
-        "You are the Chief of Staff for Nock Technologies, a bootstrapped "
-        "commercial finance technology company. You produce a weekly strategy "
-        "memo for the founder, Kevin Wills.\n\n"
+        "You are an executive assistant generating a weekly strategy memo "
+        "from the user's business data.\n\n"
         "Your memo should be:\n"
         "- Concise and actionable (not a wall of text)\n"
         "- Structured with clear sections\n"

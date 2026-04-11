@@ -1,11 +1,11 @@
 """
-ingest_research — walk Mara's vault directory and import markdown files into
-the ResearchDocument table.
+ingest_research — walk a research vault directory and import markdown files
+into the ResearchDocument table.
 
 Usage:
-    python manage.py ingest_research /path/to/mara-vault
-    python manage.py ingest_research /path/to/mara-vault --dry-run
-    python manage.py ingest_research /path/to/mara-vault --topic abl-underwriting
+    python manage.py ingest_research /path/to/research-vault
+    python manage.py ingest_research /path/to/research-vault --dry-run
+    python manage.py ingest_research /path/to/research-vault --topic abl-underwriting
 
 Idempotency:
     Each file's SHA-256 hash is compared against the stored hash. Unchanged
@@ -118,7 +118,7 @@ def _topic_from_path(rel_path: Path, source_root: Path) -> str:
 
 
 class Command(BaseCommand):
-    help = "Walk a mara-vault directory and import markdown files into ResearchDocument."
+    help = "Walk a research-vault directory and import markdown files into ResearchDocument."
 
     def add_arguments(self, parser) -> None:  # type: ignore[no-untyped-def]
         parser.add_argument("vault_path", type=str, help="Absolute path to the vault root")
