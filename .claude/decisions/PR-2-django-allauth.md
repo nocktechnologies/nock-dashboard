@@ -369,6 +369,39 @@ Same pattern as PR 1: one commit per checkpoint for reviewability.
 
 ---
 
+## 5a. Baseline captured — 2026-04-11 (checkpoint 0)
+
+Branch: `feature/django-allauth` from `main@3a15f68`
+Python: 3.12.12, Django 5.0.4, venv at `.venv/`, local dev DB: `nock_dashboard_dev` (postgres, reset fresh before baseline run)
+
+**`python manage.py check`:** clean (0 issues)
+
+**`python manage.py migrate` against fresh `nock_dashboard_dev` postgres:** clean — all apps apply including the 3 backfilled apps from PR 0 (`notifications`, `remote`, `vault`) and the rewritten brain chain (`0001`..`0007`) from PR 1.
+
+**`python manage.py makemigrations --check --dry-run`:** No changes detected (confirms the fork is self-consistent after PR 1 + PR 3 merged to main).
+
+**Main test suite** (`pytest` with default `testpaths`): **760 passed, 2 failed in 215s**
+- `pipeline/tests/test_review_alerts.py::TelegramNotifierTests::test_not_quiet_hours`
+- `pipeline/tests/test_review_alerts.py::TelegramNotifierTests::test_quiet_hours_midnight_crossing`
+- Both are pre-existing timezone-dependent failures inherited from PR 0 / PR 1 baselines. Treat as baseline-red — any state where these are the only failures after PR 2 is still green for PR 2 purposes.
+
+**Brain test suite** (explicit `pytest brain/tests` — still not in default `testpaths` per the latent gotcha from PR 1): **165 passed, 0 failed in 73s**
+
+**Accounts test suite** (explicit `pytest accounts/tests`): **0 collected** — expected, the existing accounts/ stub has no tests. PR 2 adds 22 tests across 7 files at CP6.
+
+### Expected post-PR-2 test counts (to be verified at CP8)
+
+- Main: 760 passed / 2 failed (unchanged — no new test failures from allauth integration)
+- Brain: 165 passed (unchanged — PR 2 doesn't touch brain)
+- Accounts: **22 passed** (new, the 7 files from §3 Q10)
+- Grand total: **947 passed / 2 failed**
+
+### Baseline gotchas (carried forward from PR 1, not fixed in PR 2)
+
+1. `brain/tests` still not in `pytest.ini` `testpaths`. Still a latent coverage gap. Scope for a dedicated cleanup PR (not PR 2)
+2. `mcp_server/tests` still listed in `testpaths` but directory doesn't exist. No-op, scope for a later PR when MCP server is backported
+3. `accounts/tests` ALSO not currently in `testpaths`. **PR 2 WILL add `accounts/tests` to `testpaths`** at CP6 because the tests are net-new and there's no inherited-drift concern. This is the only `testpaths` change that's scope-appropriate in PR 2
+
 ## 6. Out of scope for PR 2
 
 - Multi-tenant data isolation (owner FK, queryset filtering, cross-user tests) → PR 3
