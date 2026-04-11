@@ -17,6 +17,59 @@ product fork context in PR 6 (Docs + deployment).
 
 ---
 
+## [PR 2] — 2026-04-11 — Auth: django-allauth + brute-force protection
+
+### Added
+- **`django-allauth[socialaccount]==65.15.1`** — email-first auth layer. Replaces the hand-rolled `accounts/` stub views (which only had an `index` redirect). Allauth owns signup, login, logout, password reset, email change, email verification, and account management. `socialaccount` extra pulled in now so the OAuth social-login path (PR 3 or later) requires only settings changes, not a schema migration.
+- **`django.contrib.sites` + `SITE_ID = 1`** — required by allauth's email verification flow. Added to `INSTALLED_APPS` and the `sites` migration runs clean. The initial `Site` row (id=1) is created automatically by Django's `post_migrate` signal.
+- **`allauth.account.middleware.AccountMiddleware`** — inserted between `AuthenticationMiddleware` and `MessageMiddleware` in `MIDDLEWARE`. Required by allauth 65.x; raises `ImproperlyConfigured` at boot if missing.
+- **Full allauth settings block in `config/settings/base.py`**:
+  - `ACCOUNT_LOGIN_METHODS = {"email"}` — email-only login; no username field on any form
+  - `ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]` — allauth 65.x API (replaces deprecated `ACCOUNT_EMAIL_REQUIRED` + `ACCOUNT_USERNAME_REQUIRED`)
+  - `ACCOUNT_USER_MODEL_USERNAME_FIELD = None` — decouples allauth from the `username` field
+  - `ACCOUNT_EMAIL_VERIFICATION = "mandatory"` — new users cannot log in until they click the email link; the token is single-use and expires after 3 days (allauth default)
+  - `ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"` — all generated links (verification, password reset) use https
+  - `ACCOUNT_RATE_LIMITS` — six-bucket rate limit map covering `login_failed`, `signup`, `send_email`, `confirm_email`, `change_password`, `reset_password`, and `reset_password_from_key`. All set to allauth's sensible defaults (5/5m for most, 10/h for signup). This is in addition to axes brute-force lockout — two independent protection layers
+  - SMTP env-var block (`EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL`, `EMAIL_BACKEND`) — provider-agnostic; any SMTP relay (Resend, SendGrid, Postmark) drops in by setting env vars. Dev default is `console.EmailBackend` so no mail config is needed locally
+- **Dark-theme allauth template overrides** — 9 templates in `templates/account/` that override allauth's defaults with the product's circuit-board dark-theme design:
+  - `base_auth.html` — shared base for all auth pages: animated conic-gradient card border, circuit-board SVG background, logo circle, Geist font, dark CSS. All other auth templates extend this via `{% block card_content %}`
+  - `login.html`, `signup.html`, `logout.html` — primary auth flows
+  - `password_reset.html`, `password_reset_done.html`, `password_reset_from_key.html`, `password_reset_from_key_done.html` — password reset funnel
+  - `email_confirm.html` — email verification landing
+- **`accounts/views.py` — profile view** — `@login_required` view at `/accounts/profile/` (name `account-profile`). Renders `accounts/profile.html` showing email, `date_joined`, `last_login`, and links to change-password + logout. This is a PR 2 placeholder; PR 3 extends it with `UserProfile` subscription data
+- **`accounts/tests/` — 22 integration tests** across 7 files covering the full auth surface:
+  - `test_login.py` — login page renders, valid creds log in and redirect, invalid creds show form errors (structural assertion — not version-pinned string), unverified user cannot log in
+  - `test_signup.py` — signup page renders, valid signup creates user and sends verification email, duplicate email rejected (privacy-preserving redirect), weak password rejected, mismatched passwords rejected
+  - `test_logout.py` — logout clears session, logout redirects to login
+  - `test_password_reset.py` — reset page renders, valid email sends reset link, unknown email gets redirect (anti-enumeration — allauth intentionally sends to unknown addresses), done page renders
+  - `test_email_verification.py` — signup sends verification email, valid HMAC key marks email verified, invalid key shows error (not 500)
+  - `test_profile.py` — unauthenticated redirect to login with `next=`, authenticated user sees profile page with email content
+  - `test_axes_integration.py` — 4 bad logins don't lock out, 5th bad login triggers axes lockout response (429), correct credentials blocked after lockout, successful login resets axes counter
+- **`accounts/tests` added to `pytest.ini` testpaths** — accounts tests were collected locally but the testpaths entry makes the scope explicit for CI
+
+### Changed
+- **`config/urls.py`** — replaced the hand-rolled `include("accounts.urls")` with:
+  ```python
+  path("accounts/profile/", accounts_views.profile_view, name="account-profile"),
+  path("accounts/", include("allauth.urls")),
+  ```
+  The profile path is declared before the allauth include so our view wins over any allauth catch-all at the same prefix
+- **Allauth authentication backend** — added `allauth.account.auth_backends.AuthenticationBackend` between `AxesStandaloneBackend` and `ModelBackend` in `AUTHENTICATION_BACKENDS`. Order matters: axes intercepts first (to enforce lockout), allauth handles email→user lookup, Django's model backend provides the fallback
+
+### Axes + allauth coexistence note
+
+Axes 7.x + allauth 65.x interaction has a subtle behavior worth documenting: axes captures login failures via the `user_login_failed` Django signal. The 5th failure (at `AXES_FAILURE_LIMIT = 5`) triggers the lockout **on the same response** (signal fires inside the request cycle → `AxesSignalPermissionDenied` bubbles up → `AxesMiddleware.process_exception` returns a 429 with `accounts/locked.html`). Subsequent attempts (6th+) show the login form (200) rather than the lockout page because `AxesStandaloneBackend.authenticate()` raises `PermissionDenied` which Django's `authenticate()` silently converts to `None`; allauth re-renders the form with "invalid credentials". The lockout IS effective — the user cannot authenticate with correct or incorrect credentials after the 5th failure — but the HTTP response code changes from 429 back to 200 on attempt 6+. `AXES_RESET_ON_SUCCESS = True` clears the counter on successful login.
+
+### Verification
+
+- `python manage.py check` — 0 issues (3 deprecated-setting warnings from allauth 65.x migration fixed inline: `ACCOUNT_AUTHENTICATION_METHOD` → `ACCOUNT_LOGIN_METHODS`, `ACCOUNT_EMAIL_REQUIRED` + `ACCOUNT_USERNAME_REQUIRED` → `ACCOUNT_SIGNUP_FIELDS`)
+- `python manage.py makemigrations --check --dry-run` — No changes detected
+- `python manage.py migrate` — applies `account.*`, `sites.*`, `socialaccount.*` migrations cleanly
+- `pytest accounts/tests/ -v` — **22 passed, 0 failed**
+- Full suite — baseline maintained (pre-existing `pipeline/tests/test_review_alerts.py` TZ failures unchanged)
+
+---
+
 ## [chore] — 2026-04-11 — Strip MCP / OAuth-shim refs
 
 ### Removed

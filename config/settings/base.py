@@ -32,7 +32,10 @@ DJANGO_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",  # required by django-allauth
 ]
+
+SITE_ID = 1  # required by django-allauth (used in email links + social auth)
 
 THIRD_PARTY_APPS = [
     "channels",
@@ -44,6 +47,12 @@ THIRD_PARTY_APPS = [
     "axes",
     "rest_framework",
     "rest_framework.authtoken",
+    # django-allauth: multi-tenant web auth (registration, login, password
+    # reset, email verification). socialaccount is installed but no providers
+    # are configured — table surface is created now, providers enabled later.
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
 ]
 
 LOCAL_APPS = [
@@ -75,6 +84,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",  # allauth 0.56+ requirement
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",
@@ -254,11 +264,76 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 AUTHENTICATION_BACKENDS = [
+    # axes must be first — it intercepts authenticate() calls and enforces
+    # brute-force lockout BEFORE credentials are checked.
     "axes.backends.AxesStandaloneBackend",
+    # allauth handles email-based authentication (login, social, etc.)
+    "allauth.account.auth_backends.AuthenticationBackend",
+    # Django's built-in backend as the final fallback (admin, API tokens)
     "django.contrib.auth.backends.ModelBackend",
 ]
 
-# django-axes: brute-force login protection
+# ── django-allauth configuration ────────────────────────────────────────────
+# Authentication method: email-only (no usernames). New accounts get a
+# system-generated username internally via allauth's username adapter;
+# we don't expose it anywhere in the UI.
+# allauth 65.x renamed several settings; using the current API here:
+ACCOUNT_LOGIN_METHODS = {"email"}          # replaces ACCOUNT_AUTHENTICATION_METHOD
+ACCOUNT_SIGNUP_FIELDS = [                  # replaces ACCOUNT_EMAIL_REQUIRED +
+    "email*",                              #   ACCOUNT_USERNAME_REQUIRED
+    "password1*",
+    "password2*",
+]
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None   # suppress allauth's username field
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"   # user must verify before first login
+
+# Always use HTTPS for password-reset and email-verification links.
+# Set to "http" for local dev if you prefer, but prod must be "https".
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
+
+# Allauth-side rate limits (belt-and-suspenders alongside django-axes).
+# These throttle allauth's own views; axes handles IP lockout afterward.
+# Values are "<count>/<window>" strings; None disables a specific limit.
+ACCOUNT_RATE_LIMITS = {
+    "login_failed": "5/5m",           # 5 failed logins per 5 minutes per IP
+    "signup": "10/h",                  # 10 signups per hour per IP
+    "manage_email": "5/5m",            # 5 email-management actions per 5 min
+    "confirm_email": "10/m",           # 10 email-confirm attempts per minute
+    "change_password": "5/5m",         # 5 password-change attempts per 5 min
+    "reset_password": "5/5m",          # 5 password-reset requests per 5 min
+    "reset_password_from_key": "5/5m", # 5 password-reset-from-key attempts per 5 min
+}
+
+# Behind Railway's reverse proxy — tell allauth to trust one hop so
+# rate-limiting sees the real client IP rather than Railway's proxy IP.
+ALLAUTH_TRUSTED_PROXY_COUNT = 1
+
+# Email backend — env-var driven so any SMTP provider drops in at PR 6.
+# Dev uses the console backend (prints emails to stdout; copy the
+# verification link from runserver logs). Prod sets EMAIL_BACKEND to
+# "django.core.mail.backends.smtp.EmailBackend" + the SMTP credentials
+# for whichever provider is chosen (Resend / SendGrid / Postmark /
+# Mailgun / SES — all speak SMTP, all drop in here with zero code
+# changes). See CHANGELOG for the provider-selection decision.
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend",
+)
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+# Some providers (e.g. port 465) use implicit TLS — set EMAIL_USE_SSL=True
+# and EMAIL_USE_TLS=False. Mutually exclusive with EMAIL_USE_TLS.
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@localhost")
+# Note: a fail-fast guard against the console backend in production belongs
+# in a Django system check (accounts/checks.py), not at module level here —
+# module-level code in base.py runs before child settings override DEBUG.
+# PR 6 (production settings) will add accounts.E001 via @register().
+
+# ── django-axes: brute-force login protection ────────────────────────────────
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = timedelta(minutes=15)
 AXES_LOCKOUT_TEMPLATE = "accounts/locked.html"

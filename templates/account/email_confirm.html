@@ -1,0 +1,24 @@
+{% extends "account/base_auth.html" %}
+{% block title %}Confirm Email — Nock Dashboard{% endblock %}
+
+{% block card_content %}
+<p class="auth-heading">Confirm your email</p>
+
+{% if confirmation %}
+<p class="auth-message">
+    Please confirm that
+    <strong style="color:var(--text-primary);">{{ confirmation.email_address.email }}</strong>
+    is your email address.
+</p>
+
+<form method="post" action="{% url 'account_confirm_email' confirmation.key %}">
+    {% csrf_token %}
+    <button type="submit" class="login-submit">Confirm Email Address</button>
+</form>
+{% else %}
+<div class="ncc-alert ncc-alert-error">
+    This email confirmation link is invalid or has expired.
+    <a href="{% if user.is_authenticated %}{% url 'account_email' %}{% else %}{% url 'account_signup' %}{% endif %}" style="color:inherit;text-decoration:underline;">Request a new confirmation email.</a>
+</div>
+{% endif %}
+{% endblock %}

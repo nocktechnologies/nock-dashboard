@@ -1,0 +1,16 @@
+{% extends "account/base_auth.html" %}
+{% block title %}Sign Out — Nock Dashboard{% endblock %}
+
+{% block card_content %}
+<p class="auth-heading">Sign out</p>
+<p class="auth-message">Are you sure you want to sign out?</p>
+
+<form method="post" action="{% url 'account_logout' %}">
+    {% csrf_token %}
+    <button type="submit" class="login-submit">Sign Out</button>
+</form>
+
+<div class="auth-links" style="margin-top:16px;">
+    <a href="{% url 'dashboard:index' %}">Back to dashboard</a>
+</div>
+{% endblock %}

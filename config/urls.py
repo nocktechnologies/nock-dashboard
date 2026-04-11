@@ -3,6 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+from accounts import views as accounts_views
 from brain import views_handoffs, views_research
 from brain import views as brain_views
 from crm.views import contacts_api, deals_api
@@ -31,7 +32,14 @@ urlpatterns = [
     path("context/", include("context.urls", namespace="context")),
     path("spend/", include("spend.urls", namespace="spend")),
     path("notifications/", include("notifications.urls", namespace="notifications")),
-    path("accounts/", include("accounts.urls", namespace="accounts")),
+    # /accounts/profile/ is a direct path (not via include) so it
+    # resolves BEFORE allauth's broad include below catches everything
+    # else under /accounts/. PR 3 will add more direct paths here as
+    # the UserProfile model, billing management, and team-invite views land.
+    path("accounts/profile/", accounts_views.profile_view, name="account-profile"),
+    # All auth flows (login, signup, logout, password reset, email verify)
+    # owned by django-allauth.
+    path("accounts/", include("allauth.urls")),
     path("remote/", include("remote.urls", namespace="remote")),
     path("vault/", include("vault.urls", namespace="vault")),
     path("crm/", include("crm.urls", namespace="crm")),

@@ -1,0 +1,19 @@
+{% extends "account/base_auth.html" %}
+{% block title %}Verify Your Email — Nock Dashboard{% endblock %}
+
+{% block card_content %}
+<p class="auth-heading">Check your email</p>
+<p class="auth-message">
+    We've sent a verification link to your email address.
+    Click the link to activate your account.
+</p>
+<p class="auth-message" style="font-size:0.75rem;color:var(--text-muted);">
+    Didn't receive it? Check your spam folder or
+    <a href="{% url 'account_login' %}" style="color:#10B981;">return to sign in</a>
+    — signing in will give you the option to resend.
+</p>
+
+<div class="auth-links">
+    <a href="{% url 'account_login' %}">Back to sign in</a>
+</div>
+{% endblock %}

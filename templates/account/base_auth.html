@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sign In — NockCC</title>
+    <title>{% block title %}Nock Dashboard{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -20,7 +20,6 @@
             overflow: hidden;
         }
 
-        /* Circuit board background lines */
         .login-circuits {
             position: absolute;
             inset: 0;
@@ -35,7 +34,6 @@
             opacity: 0.12;
         }
 
-        /* Radial glow behind card */
         .login-page::before {
             content: '';
             position: absolute;
@@ -52,7 +50,7 @@
             position: relative;
             z-index: 1;
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
             padding: 0 var(--space-4);
         }
 
@@ -67,7 +65,6 @@
             position: relative;
         }
 
-        /* Animated gradient border */
         .login-card::before {
             content: '';
             position: absolute;
@@ -79,17 +76,9 @@
             opacity: 0.35;
         }
 
-        @keyframes login-border-spin {
-            to { --angle: 360deg; }
-        }
+        @keyframes login-border-spin { to { --angle: 360deg; } }
+        @property --angle { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
 
-        @property --angle {
-            syntax: '<angle>';
-            initial-value: 0deg;
-            inherits: false;
-        }
-
-        /* V-Nock logo icon */
         .login-logo {
             width: 72px;
             height: 72px;
@@ -102,8 +91,6 @@
             height: 72px;
             border-radius: 50%;
             background: linear-gradient(160deg, #0d0d1a 0%, #13132a 100%);
-            border: 2px solid;
-            border-image: none;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -111,7 +98,6 @@
             box-shadow: 0 0 30px rgba(16, 185, 129, 0.15), inset 0 0 20px rgba(16, 185, 129, 0.05);
         }
 
-        /* Gradient ring around circle */
         .login-logo-circle::before {
             content: '';
             position: absolute;
@@ -131,16 +117,9 @@
             z-index: -1;
         }
 
-        .login-logo svg {
-            width: 34px;
-            height: 34px;
-            filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.4));
-        }
-
-        /* Brand text */
         .login-brand {
             text-align: center;
-            margin-bottom: 32px;
+            margin-bottom: 28px;
         }
 
         .login-brand-name {
@@ -155,21 +134,17 @@
             color: var(--text-muted);
             letter-spacing: 0.15em;
             text-transform: uppercase;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
-        .login-tagline {
-            font-size: 0.8125rem;
+        .auth-heading {
+            font-size: 1rem;
+            font-weight: 600;
             color: var(--text-secondary);
-            letter-spacing: 0.05em;
+            text-align: center;
+            margin-bottom: 24px;
         }
 
-        .login-tagline span {
-            color: var(--text-muted);
-            margin: 0 6px;
-        }
-
-        /* Form fields */
         .login-field {
             margin-bottom: var(--space-4);
         }
@@ -194,6 +169,12 @@
             box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
         }
 
+        .field-errors {
+            margin-top: 4px;
+            font-size: 0.75rem;
+            color: #f87171;
+        }
+
         .login-submit {
             width: 100%;
             padding: 12px var(--space-4);
@@ -204,9 +185,14 @@
             border: none;
             border-radius: var(--radius-md);
             cursor: pointer;
-            transition: all 200ms ease;
+            transition: background 200ms ease, box-shadow 200ms ease;
             margin-top: var(--space-2);
             letter-spacing: 0.02em;
+        }
+
+        .login-submit:active {
+            transform: scale(0.97);
+            transition: transform 100ms ease-out;
         }
 
         @media (hover: hover) {
@@ -214,6 +200,28 @@
                 background: #059669;
                 box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
             }
+        }
+
+        .auth-links {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.8125rem;
+            color: var(--text-muted);
+        }
+
+        .auth-links a {
+            color: #10B981;
+            text-decoration: none;
+        }
+
+        .auth-links a:hover { text-decoration: underline; }
+
+        .auth-message {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: var(--text-sm);
+            line-height: 1.6;
+            margin-bottom: 24px;
         }
 
         .login-footer {
@@ -225,54 +233,42 @@
             text-transform: uppercase;
         }
 
-        /* Node animation on circuit lines */
         @keyframes circuit-pulse {
             0%, 100% { opacity: 0.3; }
             50% { opacity: 0.8; }
         }
 
-        .circuit-node {
-            animation: circuit-pulse 3s ease-in-out infinite;
-        }
-
+        .circuit-node { animation: circuit-pulse 3s ease-in-out infinite; }
         .circuit-node:nth-child(2) { animation-delay: 0.5s; }
         .circuit-node:nth-child(3) { animation-delay: 1s; }
         .circuit-node:nth-child(4) { animation-delay: 1.5s; }
         .circuit-node:nth-child(5) { animation-delay: 2s; }
         .circuit-node:nth-child(6) { animation-delay: 0.8s; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .circuit-node,
+            .login-card::before {
+                animation: none;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="login-page">
-        <!-- Circuit board background -->
         <div class="login-circuits">
             <svg viewBox="0 0 1200 800" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
-                <!-- Horizontal lines -->
                 <path d="M0 200 H300 Q320 200 320 220 V300 Q320 320 340 320 H600" stroke="url(#circuit-grad)" stroke-width="1"/>
                 <path d="M0 400 H200 Q220 400 220 380 V320 Q220 300 240 300 H500 Q520 300 520 280 V200 Q520 180 540 180 H800" stroke="url(#circuit-grad)" stroke-width="1"/>
                 <path d="M0 600 H400 Q420 600 420 580 V500 Q420 480 440 480 H700" stroke="url(#circuit-grad2)" stroke-width="1"/>
                 <path d="M1200 150 H900 Q880 150 880 170 V250 Q880 270 860 270 H600" stroke="url(#circuit-grad2)" stroke-width="1"/>
                 <path d="M1200 350 H1000 Q980 350 980 370 V450 Q980 470 960 470 H700 Q680 470 680 490 V550 Q680 570 660 570 H400" stroke="url(#circuit-grad)" stroke-width="1"/>
                 <path d="M1200 550 H950 Q930 550 930 530 V480 Q930 460 910 460 H750" stroke="url(#circuit-grad2)" stroke-width="1"/>
-                <path d="M100 0 V150 Q100 170 120 170 H300" stroke="url(#circuit-grad)" stroke-width="1"/>
-                <path d="M1100 800 V650 Q1100 630 1080 630 H900" stroke="url(#circuit-grad2)" stroke-width="1"/>
-
-                <!-- Junction nodes -->
                 <circle class="circuit-node" cx="300" cy="200" r="3" fill="#10B981"/>
                 <circle class="circuit-node" cx="600" cy="320" r="3" fill="#34D399"/>
                 <circle class="circuit-node" cx="500" cy="300" r="2.5" fill="#10B981"/>
                 <circle class="circuit-node" cx="800" cy="180" r="3" fill="#34D399"/>
                 <circle class="circuit-node" cx="700" cy="480" r="3" fill="#10B981"/>
                 <circle class="circuit-node" cx="400" cy="600" r="2.5" fill="#34D399"/>
-                <circle class="circuit-node" cx="900" cy="270" r="3" fill="#10B981"/>
-                <circle class="circuit-node" cx="750" cy="460" r="2.5" fill="#34D399"/>
-
-                <!-- Small accent dots -->
-                <circle cx="220" cy="400" r="2" fill="#E84393" opacity="0.4"/>
-                <circle cx="520" cy="200" r="2" fill="#E84393" opacity="0.3"/>
-                <circle cx="980" cy="350" r="2" fill="#E84393" opacity="0.35"/>
-                <circle cx="680" cy="570" r="2" fill="#E84393" opacity="0.3"/>
-
                 <defs>
                     <linearGradient id="circuit-grad" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" stop-color="#10B981" stop-opacity="0.6"/>
@@ -288,41 +284,16 @@
 
         <div class="login-wrapper">
             <div class="login-card">
-                <!-- V-Nock Logo -->
                 <div class="login-logo">
                     <div class="login-logo-circle">
                         <img src="{% static 'images/nock-logo-icon.png' %}" alt="Nock" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;">
                     </div>
                 </div>
-
-                <!-- Brand -->
                 <div class="login-brand">
-                    <div class="login-brand-name ncc-gradient-text">Nock Command Center</div>
+                    <div class="login-brand-name ncc-gradient-text">Nock Dashboard</div>
                     <div class="login-brand-sub">Technologies</div>
-                    <div class="login-tagline">Align<span>&bull;</span>Decide<span>&bull;</span>Deploy</div>
                 </div>
-
-                {% if form.errors %}
-                <div class="ncc-alert ncc-alert-error" style="margin-bottom: var(--space-4);">
-                    Invalid username or password.
-                </div>
-                {% endif %}
-
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="login-field">
-                        <label for="id_username">Username</label>
-                        <input type="text" name="username" id="id_username" autofocus autocomplete="username"
-                               class="ncc-input"
-                               value="{{ form.username.value|default:'' }}">
-                    </div>
-                    <div class="login-field">
-                        <label for="id_password">Password</label>
-                        <input type="password" name="password" id="id_password" autocomplete="current-password"
-                               class="ncc-input">
-                    </div>
-                    <button type="submit" class="login-submit">Sign In</button>
-                </form>
+                {% block card_content %}{% endblock %}
             </div>
             <p class="login-footer">Nock Technologies</p>
         </div>

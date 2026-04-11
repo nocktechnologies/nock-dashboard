@@ -1,0 +1,62 @@
+{% extends "account/base_auth.html" %}
+{% block title %}Create Account — Nock Dashboard{% endblock %}
+
+{% block card_content %}
+<p class="auth-heading">Create your account</p>
+
+{% if form.non_field_errors %}
+<div class="ncc-alert ncc-alert-error" style="margin-bottom: var(--space-4);">
+    {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+</div>
+{% endif %}
+
+<form method="post" action="{% url 'account_signup' %}">
+    {% csrf_token %}
+    {{ redirect_field }}
+
+    <div class="login-field">
+        <label for="{{ form.email.id_for_label }}">Email</label>
+        <input type="email"
+               name="{{ form.email.html_name }}"
+               id="{{ form.email.id_for_label }}"
+               value="{{ form.email.value|default:'' }}"
+               autocomplete="email"
+               autofocus
+               class="ncc-input{% if form.email.errors %} error{% endif %}"
+               placeholder="you@example.com">
+        {% if form.email.errors %}
+        <div class="field-errors">{% for e in form.email.errors %}{{ e }}{% endfor %}</div>
+        {% endif %}
+    </div>
+
+    <div class="login-field">
+        <label for="{{ form.password1.id_for_label }}">Password</label>
+        <input type="password"
+               name="{{ form.password1.html_name }}"
+               id="{{ form.password1.id_for_label }}"
+               autocomplete="new-password"
+               class="ncc-input{% if form.password1.errors %} error{% endif %}">
+        {% if form.password1.errors %}
+        <div class="field-errors">{% for e in form.password1.errors %}{{ e }}{% endfor %}</div>
+        {% endif %}
+    </div>
+
+    <div class="login-field">
+        <label for="{{ form.password2.id_for_label }}">Confirm Password</label>
+        <input type="password"
+               name="{{ form.password2.html_name }}"
+               id="{{ form.password2.id_for_label }}"
+               autocomplete="new-password"
+               class="ncc-input{% if form.password2.errors %} error{% endif %}">
+        {% if form.password2.errors %}
+        <div class="field-errors">{% for e in form.password2.errors %}{{ e }}{% endfor %}</div>
+        {% endif %}
+    </div>
+
+    <button type="submit" class="login-submit">Create Account</button>
+</form>
+
+<div class="auth-links" style="margin-top:16px;">
+    Already have an account? <a href="{% url 'account_login' %}">Sign in</a>
+</div>
+{% endblock %}
