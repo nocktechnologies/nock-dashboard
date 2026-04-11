@@ -1,6 +1,32 @@
 # PR 1 — Strip Personal Layers from Nock Dashboard
 
-**Status:** APPROVED 2026-04-11 — executing
+**Status:** EXECUTED 2026-04-11 — checkpoints 0-8 complete, ready to push + open PR
+
+### Actual counts (post-execution, captured at checkpoint 8)
+
+| Metric | Before | After | Delta |
+|---|---|---|---|
+| Files deleted entirely | — | 10 | — |
+| Files edited surgically | — | ~20 | — |
+| Brain migration chain length | 10 | 7 | −3 |
+| Brain test count (explicit) | 281 | 166 | −115 (57 diary + 50 identity + 4 security date + 2 continuity seed + 2 views seed) |
+| Main pytest suite | 760 passed / 2 failed | 760 passed / 2 failed | 0 (matches PR 0 baseline; the 2 failures are the pre-existing TZ issues) |
+| Mara strings in hard-target files | 6 files with refs | 0 | all clean |
+| DiaryEntry / IdentityDocument code refs | present | 0 in code (docs-only meta-references in CHANGELOG, plan doc, test_security docstring) | all clean |
+| manage.py check | clean | clean | — |
+| makemigrations --check --dry-run | 2 pending (pre-existing drift, resolved in PR 0) | No changes detected | clean |
+
+**Checkpoint commits (on `feature/strip-personal-layers`, on top of `main@4298a1b`):**
+- `f15b26b` docs(pr-1): add PR 1 plan
+- `c2c711b` checkpoint 0: baseline captured
+- `64a7059` checkpoint 1: unroute diary/identity endpoints
+- `e3d3308` checkpoint 2: delete view modules
+- `db1d34e` checkpoint 3: delete/rewrite tests
+- `5ae9c0c` checkpoint 4: strip Mara branding + branding sweep
+- `e0a74e3` checkpoint 5: generic AI prompts in intelligence layer
+- `e6dd221` checkpoint 6: delete DiaryEntry + IdentityDocument models, rewrite migration chain
+- `f2fa02d` checkpoint 7: CHANGELOG product-fork section
+- `(this commit)` checkpoint 8: verification
 **Review outcomes (all 7 questions from §5):**
 1. Delete `.claude/SKILL_IN_CHAT_HANDOFF.md` (Mara-specific, product has `HandoffEntry`)
 2. Rewrite `brain/tests/test_security.py` against `/api/brain/memory/` (preserve security coverage)
