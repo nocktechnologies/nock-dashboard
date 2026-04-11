@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% block title %}Remote Control — NockCC{% endblock %}
+
+{% block content %}
+<div x-data="remoteControl()" x-init="init()">
+
+    <!-- Agent Status Banner -->
+    <div class="mb-6 rounded-lg p-4 flex items-center justify-between"
+         :class="agentOnline ? 'bg-green-900/30 border border-green-800' : 'bg-red-900/30 border border-red-800'">
+        <div class="flex items-center gap-3">
+            <span class="relative flex h-3 w-3">
+                <span class="absolute inline-flex h-full w-full rounded-full opacity-75"
+                      :class="agentOnline ? 'bg-green-400 animate-ping' : 'bg-red-400'"></span>
+                <span class="relative inline-flex rounded-full h-3 w-3"
+                      :class="agentOnline ? 'bg-green-500' : 'bg-red-500'"></span>
+            </span>
+            <div>
+                <span class="font-medium" x-text="agentOnline ? 'Agent Online' : 'Agent Offline'"></span>
+                <span class="text-sm text-gray-400 ml-2" x-show="agentName" x-text="agentName"></span>
+            </div>
+        </div>
+        <div class="text-sm text-gray-400" x-show="lastHeartbeat" x-text="'Last seen: ' + lastHeartbeat"></div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="grid grid-cols-2 gap-3 mb-6">
+        <button @click="showNewSession = true"
+                class="bg-brand-500 hover:bg-brand-500/80 text-white font-medium py-3 px-4 rounded-lg transition flex items-center justify-center gap-2 min-h-[48px]"
+                :disabled="!agentOnline">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            New Session
+        </button>
+        <button @click="confirmKill = true"
+                class="bg-red-600 hover:bg-red-700 text-white font-medium py-3 px-4 rounded-lg transition flex items-center justify-center gap-2 min-h-[48px]"
+                :disabled="!agentOnline">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+            </svg>
+            Kill All
+        </button>
+    </div>
+
+    <!-- New Session Modal -->
+    <div x-show="showNewSession" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" @click.self="showNewSession = false">
+        <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-6">
+            <h3 class="text-lg font-semibold mb-4">New Claude Code Session</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Repository</label>
+                    <select x-model="newRepo" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white min-h-[44px]">
+                        <option value="">Select repo...</option>
+                        <option value="nexus">Nexus</option>
+                        <option value="abl">ABL</option>
+                        <option value="po_hub">PO Hub</option>
+                        <option value="command-center">Command Center</option>
+                        <option value="site">Site</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Prompt</label>
+                    <textarea x-model="newPrompt" rows="4"
+                              class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white resize-none"
+                              placeholder="What should Claude do?"></textarea>
+                </div>
+                <div class="flex gap-3">
+                    <button @click="launchSession()" :disabled="!newRepo || !newPrompt || launching"
+                            class="flex-1 bg-brand-500 hover:bg-brand-500/80 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition min-h-[44px]">
+                        <span x-show="!launching">Launch</span>
+                        <span x-show="launching">Launching...</span>
+                    </button>
+                    <button @click="showNewSession = false"
+                            class="px-4 py-2.5 text-gray-400 hover:text-white transition min-h-[44px]">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kill Confirmation -->
+    <div x-show="confirmKill" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" @click.self="confirmKill = false">
+        <div class="bg-gray-900 border border-red-800 rounded-xl w-full max-w-sm p-6 text-center">
+            <h3 class="text-lg font-semibold text-red-400 mb-2">Kill All Sessions?</h3>
+            <p class="text-sm text-gray-400 mb-4">This will terminate all running Claude Code sessions immediately.</p>
+            <div class="flex gap-3">
+                <button @click="killAll()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition min-h-[44px]">
+                    Confirm Kill
+                </button>
+                <button @click="confirmKill = false" class="px-4 py-2.5 text-gray-400 hover:text-white transition min-h-[44px]">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Sessions -->
+    <h2 class="text-lg font-semibold mb-3">Active Sessions</h2>
+    <div class="space-y-3 mb-6" x-show="activeSessions.length > 0">
+        <template x-for="cmd in activeSessions" :key="cmd.id">
+            <a :href="cmd.session_id ? '/remote/session/' + cmd.session_id + '/' : '#'"
+               class="block bg-gray-900 border-2 border-brand-500/50 rounded-lg p-4 hover:border-brand-500 transition"
+               :class="{ 'opacity-60 pointer-events-none': !cmd.session_id }">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="relative flex h-2.5 w-2.5">
+                            <span class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping"></span>
+                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                        </span>
+                        <span class="font-medium text-sm" x-text="cmd.payload.repo || cmd.command_type_display"></span>
+                    </div>
+                    <span class="text-xs px-2 py-0.5 rounded-full"
+                          :class="cmd.status === 'running' ? 'bg-yellow-900/50 text-yellow-300' : 'bg-blue-900/50 text-blue-300'"
+                          x-text="cmd.status_display"></span>
+                </div>
+                <p class="text-xs text-gray-400 truncate" x-text="cmd.payload.prompt || ''"></p>
+                <p class="text-xs text-brand-400 mt-1" x-show="cmd.session_id" x-text="'Tap to view output →'"></p>
+            </a>
+        </template>
+    </div>
+    <div x-show="activeSessions.length === 0"
+         class="text-center py-8 text-gray-500 text-sm mb-6">
+        No active sessions
+    </div>
+
+    <!-- Command History -->
+    <h2 class="text-lg font-semibold mb-3">Command History</h2>
+    <div class="space-y-2">
+        <template x-for="cmd in commands.slice(0, 20)" :key="cmd.id">
+            <div class="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+                <div class="p-3 flex items-center justify-between cursor-pointer"
+                     @click="toggleExpand(cmd)">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <span class="text-xs px-2 py-0.5 rounded-full whitespace-nowrap"
+                              :class="{
+                                  'bg-gray-800 text-gray-400': cmd.status === 'queued',
+                                  'bg-blue-900/50 text-blue-300': cmd.status === 'sent',
+                                  'bg-yellow-900/50 text-yellow-300': cmd.status === 'running',
+                                  'bg-green-900/50 text-green-300': cmd.status === 'completed',
+                                  'bg-red-900/50 text-red-300': cmd.status === 'failed',
+                                  'bg-gray-800 text-gray-500': cmd.status === 'cancelled',
+                              }"
+                              x-text="cmd.status_display"></span>
+                        <span class="text-sm truncate" x-text="cmd.command_type_display"></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500 whitespace-nowrap" x-text="new Date(cmd.created_at).toLocaleTimeString()"></span>
+                        <svg class="w-4 h-4 text-gray-500 transition-transform" :class="cmd.expanded ? 'rotate-180' : ''"
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </div>
+                </div>
+                <!-- Expanded output section -->
+                <div x-show="cmd.expanded" x-transition class="border-t border-gray-800">
+                    <div class="p-3">
+                        <!-- Result -->
+                        <div x-show="cmd.result" class="text-xs text-gray-400 mb-2">
+                            <span class="text-gray-500">Result:</span> <span x-text="cmd.result"></span>
+                        </div>
+                        <!-- Session link -->
+                        <a x-show="cmd.session_id"
+                           :href="'/remote/session/' + cmd.session_id + '/'"
+                           class="inline-block text-xs text-brand-400 hover:text-brand-300 mb-2"
+                           @click.stop
+                           x-text="'View live session →'"></a>
+                        <!-- Loading indicator -->
+                        <div x-show="cmd._loadingOutput" class="text-xs text-gray-500 py-2">Loading output...</div>
+                        <!-- Output lines -->
+                        <div x-show="cmd._outputLines && cmd._outputLines.length > 0"
+                             class="bg-gray-950 rounded p-2 font-mono text-xs max-h-60 overflow-y-auto">
+                            <template x-for="line in (cmd._outputLines || [])" :key="line.line">
+                                <div class="py-0.5"
+                                     :class="line.stream === 'stderr' ? 'text-red-400' : 'text-gray-300'">
+                                    <span x-text="line.content"></span>
+                                </div>
+                            </template>
+                        </div>
+                        <!-- No output -->
+                        <div x-show="!cmd._loadingOutput && (!cmd._outputLines || cmd._outputLines.length === 0)"
+                             class="text-xs text-gray-600 py-2"
+                             x-text="cmd.session_id ? 'No output lines yet' : 'No session output captured'"></div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+    <div x-show="commands.length === 0" class="text-center py-8 text-gray-500 text-sm">
+        No commands yet
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function remoteControl() {
+    return {
+        agentOnline: false,
+        agentName: '',
+        lastHeartbeat: '',
+        commands: [],
+        showNewSession: false,
+        confirmKill: false,
+        newRepo: '',
+        newPrompt: '',
+        launching: false,
+
+        get activeSessions() {
+            return this.commands.filter(c =>
+                c.status === 'running' || c.status === 'sent'
+            );
+        },
+
+        init() {
+            this.fetchStatus();
+            this.fetchCommands();
+            setInterval(() => this.fetchStatus(), 5000);
+            setInterval(() => this.fetchCommands(), 3000);
+        },
+
+        async fetchStatus() {
+            try {
+                const resp = await fetch('/remote/api/remote/agent/status/');
+                const data = await resp.json();
+                if (data.success) {
+                    this.agentOnline = data.data.any_online;
+                    if (data.data.agents.length > 0) {
+                        const a = data.data.agents[0];
+                        this.agentName = a.machine_name || a.name;
+                        if (a.last_heartbeat) {
+                            const dt = new Date(a.last_heartbeat);
+                            const diff = Math.floor((Date.now() - dt) / 1000);
+                            this.lastHeartbeat = diff < 60 ? `${diff}s ago` : `${Math.floor(diff/60)}m ago`;
+                        }
+                    }
+                }
+            } catch (e) {}
+        },
+
+        async fetchCommands() {
+            try {
+                const resp = await fetch('/remote/api/remote/commands/?limit=20');
+                const data = await resp.json();
+                if (data.success) {
+                    // Preserve expanded state and cached output across refreshes
+                    const prev = {};
+                    this.commands.forEach(c => {
+                        if (c.expanded || c._outputLines) {
+                            prev[c.id] = { expanded: c.expanded, _outputLines: c._outputLines };
+                        }
+                    });
+                    this.commands = data.data.commands.map(c => ({
+                        ...c,
+                        expanded: prev[c.id]?.expanded || false,
+                        _outputLines: prev[c.id]?._outputLines || null,
+                        _loadingOutput: false,
+                    }));
+                    // Auto-fetch output for expanded items that gained a session_id
+                    for (const cmd of this.commands) {
+                        if (cmd.expanded && cmd.session_id && !cmd._outputLines) {
+                            this._fetchOutput(cmd, cmd.session_id);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('[NockCC] fetchCommands error:', e);
+            }
+        },
+
+        async _fetchOutput(cmd, sessionId) {
+            if (!sessionId) {
+                console.warn('[NockCC] _fetchOutput called without session_id');
+                return;
+            }
+            cmd._loadingOutput = true;
+            const url = `/remote/api/remote/output/${sessionId}/`;
+            console.log('[NockCC] Fetching output:', url);
+            try {
+                const resp = await fetch(url);
+                const data = await resp.json();
+                console.log('[NockCC] Output response:', JSON.stringify(data).slice(0, 200));
+                if (data.success) {
+                    cmd._outputLines = data.data.lines;
+                } else {
+                    cmd._outputLines = [];
+                }
+            } catch (e) {
+                console.error('[NockCC] Output fetch error:', e);
+                cmd._outputLines = [];
+            } finally {
+                cmd._loadingOutput = false;
+            }
+        },
+
+        async toggleExpand(cmd) {
+            cmd.expanded = !cmd.expanded;
+            if (cmd.expanded && cmd.session_id && !cmd._outputLines) {
+                this._fetchOutput(cmd, cmd.session_id);
+            }
+        },
+
+        async launchSession() {
+            this.launching = true;
+            try {
+                const resp = await fetch('/remote/api/remote/commands/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+                    },
+                    body: JSON.stringify({
+                        command_type: 'start_session',
+                        payload: { repo: this.newRepo, prompt: this.newPrompt },
+                    }),
+                });
+                if (resp.ok) {
+                    this.showNewSession = false;
+                    this.newRepo = '';
+                    this.newPrompt = '';
+                    this.fetchCommands();
+                }
+            } finally {
+                this.launching = false;
+            }
+        },
+
+        async killAll() {
+            try {
+                await fetch('/remote/api/remote/kill-all/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+                    },
+                });
+                this.confirmKill = false;
+                this.fetchCommands();
+            } catch (e) {}
+        },
+    };
+}
+</script>
+{% endblock %}

@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+  .notif-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: var(--space-5);
+    margin-bottom: var(--space-6);
+  }
+
+  .notif-channel-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--bg-border);
+  }
+
+  .notif-channel-row:last-child {
+    border-bottom: none;
+  }
+
+  .notif-channel-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .notif-rule-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3);
+    background-color: var(--bg-base);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-2);
+  }
+
+  .notif-rule-row:last-child {
+    margin-bottom: 0;
+  }
+
+  .notif-rule-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .notif-rule-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  @media (max-width: 767px) {
+    .notif-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="ncc-page-header">
+  <h1 class="ncc-page-title">Notifications</h1>
+</div>
+
+<!-- Channels + Rules grid -->
+<div class="notif-grid">
+  <!-- Channels card -->
+  <div class="ncc-card ncc-stagger">
+    <div class="ncc-card-header">
+      <span class="ncc-card-label">Channels</span>
+    </div>
+    {% if channels %}
+      {% for ch in channels %}
+      <div class="notif-channel-row">
+        <div class="notif-channel-info">
+          {% if ch.is_active %}
+          <span class="ncc-dot ncc-dot-success"></span>
+          {% else %}
+          <span class="ncc-dot ncc-dot-muted"></span>
+          {% endif %}
+          <span class="text-sm">{{ ch.name }}</span>
+          <span class="text-xs text-muted">{{ ch.get_channel_type_display }}</span>
+        </div>
+        {% if ch.is_active %}
+        <span class="ncc-badge ncc-badge-approved">Active</span>
+        {% else %}
+        <span class="ncc-badge ncc-badge-draft">Inactive</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="text-xs text-muted" style="text-align:center; padding:var(--space-6) 0;">No channels configured</p>
+    {% endif %}
+  </div>
+
+  <!-- Rules card -->
+  <div class="ncc-card ncc-stagger">
+    <div class="ncc-card-header">
+      <span class="ncc-card-label">Rules</span>
+    </div>
+    {% if rules %}
+      {% for r in rules %}
+      <div class="notif-rule-row">
+        <div class="notif-rule-left">
+          <span class="text-sm">{{ r.name }}</span>
+          <span class="ncc-badge ncc-badge-open">{{ r.get_trigger_event_display }}</span>
+        </div>
+        <div class="notif-rule-right">
+          <span class="text-xs text-muted">{{ r.channel.name }}</span>
+          {% if r.is_active %}
+          <span class="ncc-dot ncc-dot-success"></span>
+          {% else %}
+          <span class="ncc-dot ncc-dot-muted"></span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="text-xs text-muted" style="text-align:center; padding:var(--space-6) 0;">No rules configured. Run: python manage.py seed_notifications</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Notification Log -->
+<div class="ncc-card ncc-stagger" style="padding:0; overflow:hidden;">
+  <div style="padding:var(--space-4) var(--space-5);">
+    <span class="ncc-card-label">Recent Notifications</span>
+  </div>
+  <table class="ncc-table">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Event</th>
+        <th>Channel</th>
+        <th>Status</th>
+        <th>Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr class="ncc-stagger">
+        <td class="text-xs text-muted">{{ log.sent_at|date:"M d, H:i" }}</td>
+        <td class="text-xs">{{ log.event_type }}</td>
+        <td class="text-xs text-muted">{{ log.channel.name }}</td>
+        <td>
+          {% if log.success %}
+          <span class="ncc-badge ncc-badge-approved">Sent</span>
+          {% else %}
+          <span class="ncc-badge ncc-badge-closed">Failed</span>
+          {% endif %}
+        </td>
+        <td class="text-xs text-danger" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ log.error_message|default:"\u2014" }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="5" style="text-align:center; padding:var(--space-8) var(--space-4);" class="text-muted">No notifications sent yet</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

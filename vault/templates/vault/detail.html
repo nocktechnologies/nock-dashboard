@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}{{ document.title }} — Vault — NockCC{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-white">{{ document.title }}</h1>
+    <a href="{% url 'vault:list' %}" class="text-xs text-gray-400 hover:text-white transition">Back to Vault</a>
+  </div>
+
+  <div class="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wider">Category</p>
+        <p class="text-sm text-gray-200 mt-1">{{ document.get_category_display }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wider">File Size</p>
+        <p class="text-sm text-gray-200 mt-1">{{ document.file_size_display }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wider">Uploaded</p>
+        <p class="text-sm text-gray-200 mt-1">{{ document.uploaded_at|date:"M d, Y H:i" }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 uppercase tracking-wider">File Type</p>
+        <p class="text-sm text-gray-200 mt-1">{{ document.file_type|default:"Unknown" }}</p>
+      </div>
+    </div>
+
+    {% if document.description %}
+    <div class="mt-4">
+      <p class="text-xs text-gray-400 uppercase tracking-wider mb-1">Description</p>
+      <p class="text-sm text-gray-300">{{ document.description }}</p>
+    </div>
+    {% endif %}
+
+    {% if document.tag_list %}
+    <div class="mt-4">
+      <p class="text-xs text-gray-400 uppercase tracking-wider mb-2">Tags</p>
+      <div class="flex flex-wrap gap-1">
+        {% for tag in document.tag_list %}
+        <span class="px-2 py-1 rounded bg-gray-700 text-gray-300 text-xs">{{ tag }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if document.file %}
+    <div class="mt-6 flex items-center gap-3">
+      <a href="{{ document.file.url }}" download="{{ document.filename }}"
+         class="bg-brand-500 hover:bg-brand-500/80 text-white text-sm px-4 py-2 rounded-md transition inline-flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        Download
+      </a>
+    </div>
+
+    {% if document.is_image %}
+    <div class="mt-6">
+      <p class="text-xs text-gray-400 uppercase tracking-wider mb-2">Preview</p>
+      <img src="{{ document.file.url }}" alt="{{ document.title }}" class="max-w-full rounded-lg border border-gray-700">
+    </div>
+    {% elif document.is_pdf %}
+    <div class="mt-6">
+      <p class="text-xs text-gray-400 uppercase tracking-wider mb-2">Preview</p>
+      <iframe src="{{ document.file.url }}" class="w-full h-96 rounded-lg border border-gray-700"></iframe>
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="mt-6 py-8 text-center">
+      <p class="text-gray-500 text-sm">No file attached — placeholder record.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

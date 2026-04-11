@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}Session {{ session_id }} — NockCC{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Terminal view */
+    .terminal-view {
+        background: #0a0a0a;
+        font-family: 'JetBrains Mono', 'Source Code Pro', 'Fira Code', 'Cascadia Code', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+        font-size: 0.8125rem;
+        line-height: 1.45;
+        color: #d4d4d4;
+        border: 1px solid #1e1e1e;
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+    .terminal-view .term-header {
+        background: #161616;
+        border-bottom: 1px solid #262626;
+        padding: 0.5rem 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .terminal-view .term-header .dots {
+        display: flex;
+        gap: 0.375rem;
+    }
+    .terminal-view .term-header .dots span {
+        width: 0.625rem;
+        height: 0.625rem;
+        border-radius: 50%;
+    }
+    .terminal-view .term-body {
+        padding: 0.75rem;
+        overflow-y: auto;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+    }
+    .term-line { padding: 1px 0; white-space: pre-wrap; }
+    .term-line-number {
+        display: inline-block;
+        width: 3rem;
+        text-align: right;
+        margin-right: 0.75rem;
+        color: #404040;
+        user-select: none;
+        flex-shrink: 0;
+    }
+    .term-stdout { color: #d4d4d4; }
+    .term-stderr { color: #f87171; }
+    .term-tool { color: #22d3ee; font-weight: 500; }
+    .term-cost { color: #6b7280; font-style: italic; }
+    .term-exit-ok { color: #4ade80; }
+    .term-exit-fail { color: #f87171; }
+    .term-footer {
+        background: #161616;
+        border-top: 1px solid #262626;
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+        color: #6b7280;
+        display: flex;
+        justify-content: space-between;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="sessionDetail('{{ session_id }}')" x-init="init()">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <a href="/remote/" class="text-sm text-gray-400 hover:text-white transition">&larr; Back to Remote</a>
+            <h1 class="text-xl font-semibold mt-1">Session <span class="text-brand-500">{{ session_id }}</span></h1>
+        </div>
+        <div class="flex items-center gap-2">
+            <button @click="copyOutput()"
+                    class="bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-medium px-3 py-2 rounded-lg transition min-h-[44px]"
+                    x-text="copyLabel">
+            </button>
+            <button @click="stopSession()"
+                    class="bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition min-h-[44px]">
+                Stop
+            </button>
+        </div>
+    </div>
+
+    <!-- Terminal Output -->
+    <div class="terminal-view mb-4">
+        <!-- Mac-style title bar -->
+        <div class="term-header">
+            <div class="dots">
+                <span class="bg-red-500"></span>
+                <span class="bg-yellow-500"></span>
+                <span class="bg-green-500"></span>
+            </div>
+            <span class="text-xs text-gray-500">session {{ session_id }}</span>
+            <span class="text-xs text-gray-600 ml-auto" x-text="outputLines.length + ' lines'"></span>
+        </div>
+
+        <!-- Output body -->
+        <div x-ref="outputContainer"
+             class="term-body"
+             style="height: calc(100vh - 320px); min-height: 300px;"
+             @scroll="handleScroll()">
+
+            <template x-for="line in outputLines" :key="line.line">
+                <div class="term-line" :class="classifyLine(line)">
+                    <span class="term-line-number" x-text="String(line.line).padStart(4)"></span><span x-text="line.content"></span>
+                </div>
+            </template>
+
+            <div x-show="outputLines.length === 0" class="text-gray-600 text-center py-8">
+                <span class="animate-pulse">Waiting for output...</span>
+            </div>
+
+            <!-- Cursor blink when streaming -->
+            <div x-show="isStreaming" class="term-line">
+                <span class="term-line-number">&nbsp;</span><span class="animate-pulse text-green-400">_</span>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="term-footer" x-show="outputLines.length > 0">
+            <span x-text="'Lines: ' + outputLines.length"></span>
+            <span x-text="isStreaming ? 'Streaming...' : 'Complete'"></span>
+        </div>
+    </div>
+
+    <!-- Input Bar -->
+    <div class="flex gap-2">
+        <input type="text" x-model="promptText"
+               @keydown.enter="sendPrompt()"
+               placeholder="Send a prompt..."
+               class="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white min-h-[48px] font-mono text-sm">
+        <button @click="sendPrompt()" :disabled="!promptText.trim()"
+                class="bg-brand-500 hover:bg-brand-500/80 disabled:opacity-50 text-white px-6 py-3 rounded-lg transition font-medium min-h-[48px]">
+            Send
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function sessionDetail(sessionId) {
+    return {
+        sessionId: sessionId,
+        outputLines: [],
+        promptText: '',
+        autoScroll: true,
+        eventSource: null,
+        isStreaming: true,
+        copyLabel: 'Copy',
+
+        init() {
+            this.fetchHistorical();
+            this.connectSSE();
+        },
+
+        classifyLine(line) {
+            const c = line.content || '';
+            if (line.stream === 'stderr') return 'term-stderr';
+            if (/^──\s+\S+.*──$/.test(c) && /Cost:/.test(c)) return 'term-cost';
+            if (/^──\s+.+\s+──$/.test(c)) return 'term-tool';
+            if (/^── Session exited with code 0/.test(c)) return 'term-exit-ok';
+            if (/^── Session exited with code/.test(c)) return 'term-exit-fail';
+            return 'term-stdout';
+        },
+
+        async fetchHistorical() {
+            try {
+                const resp = await fetch(`/remote/api/remote/output/${this.sessionId}/`);
+                const data = await resp.json();
+                if (data.success && data.data.lines.length > 0) {
+                    for (const line of data.data.lines) {
+                        if (!this.outputLines.find(l => l.line === line.line)) {
+                            this.outputLines.push(line);
+                        }
+                    }
+                    this.outputLines.sort((a, b) => a.line - b.line);
+                    // Check if session already ended
+                    const last = this.outputLines[this.outputLines.length - 1];
+                    if (last && /^── Session exited with code/.test(last.content)) {
+                        this.isStreaming = false;
+                    }
+                    if (this.autoScroll) {
+                        this.$nextTick(() => this.scrollToBottom());
+                    }
+                }
+            } catch (e) {
+                console.error('[NockCC] Historical fetch error:', e);
+            }
+        },
+
+        connectSSE() {
+            this.eventSource = new EventSource(
+                `/remote/api/remote/stream/${this.sessionId}/`
+            );
+
+            this.eventSource.addEventListener('output', (event) => {
+                const data = JSON.parse(event.data);
+                if (!this.outputLines.find(l => l.line === data.line)) {
+                    this.outputLines.push(data);
+                    this.outputLines.sort((a, b) => a.line - b.line);
+                    // Check for session exit
+                    if (/^── Session exited with code/.test(data.content)) {
+                        this.isStreaming = false;
+                    }
+                    if (this.autoScroll) {
+                        this.$nextTick(() => this.scrollToBottom());
+                    }
+                }
+            });
+
+            this.eventSource.addEventListener('timeout', () => {
+                this.eventSource.close();
+                this.isStreaming = false;
+            });
+
+            this.eventSource.onerror = () => {
+                this.eventSource.close();
+                if (this.isStreaming) {
+                    setTimeout(() => this.connectSSE(), 3000);
+                }
+            };
+        },
+
+        scrollToBottom() {
+            const container = this.$refs.outputContainer;
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+            }
+        },
+
+        handleScroll() {
+            const container = this.$refs.outputContainer;
+            if (container) {
+                const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+                this.autoScroll = atBottom;
+            }
+        },
+
+        async copyOutput() {
+            const text = this.outputLines.map(l => l.content).join('\n');
+            try {
+                await navigator.clipboard.writeText(text);
+                this.copyLabel = 'Copied!';
+                setTimeout(() => { this.copyLabel = 'Copy'; }, 2000);
+            } catch (e) {
+                this.copyLabel = 'Failed';
+                setTimeout(() => { this.copyLabel = 'Copy'; }, 2000);
+            }
+        },
+
+        async sendPrompt() {
+            if (!this.promptText.trim()) return;
+            const prompt = this.promptText;
+            this.promptText = '';
+
+            await fetch('/remote/api/remote/commands/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+                },
+                body: JSON.stringify({
+                    command_type: 'send_prompt',
+                    payload: { session_id: this.sessionId, prompt: prompt },
+                }),
+            });
+        },
+
+        async stopSession() {
+            await fetch('/remote/api/remote/commands/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '',
+                },
+                body: JSON.stringify({
+                    command_type: 'stop_session',
+                    payload: { session_id: this.sessionId },
+                }),
+            });
+        },
+    };
+}
+</script>
+{% endblock %}
