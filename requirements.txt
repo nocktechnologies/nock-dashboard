@@ -25,6 +25,7 @@ django-filter==24.3
 django-fernet-fields-v2==0.9
 django-ratelimit==4.1.0
 django-axes==7.0.1
+django-allauth[socialaccount]==65.15.1
 django-cors-headers==4.3.1
 websockets==16.0
 pywebpush==2.3.0

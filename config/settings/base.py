@@ -32,7 +32,10 @@ DJANGO_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",  # required by django-allauth
 ]
+
+SITE_ID = 1  # required by django-allauth (used in email links + social auth)
 
 THIRD_PARTY_APPS = [
     "channels",
@@ -44,6 +47,12 @@ THIRD_PARTY_APPS = [
     "axes",
     "rest_framework",
     "rest_framework.authtoken",
+    # django-allauth: multi-tenant web auth (registration, login, password
+    # reset, email verification). socialaccount is installed but no providers
+    # are configured — table surface is created now, providers enabled later.
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
 ]
 
 LOCAL_APPS = [
@@ -75,6 +84,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",  # allauth 0.56+ requirement
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",
@@ -254,7 +264,12 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 AUTHENTICATION_BACKENDS = [
+    # axes must be first — it intercepts authenticate() calls and enforces
+    # brute-force lockout BEFORE credentials are checked.
     "axes.backends.AxesStandaloneBackend",
+    # allauth handles email-based authentication (login, social, etc.)
+    "allauth.account.auth_backends.AuthenticationBackend",
+    # Django's built-in backend as the final fallback (admin, API tokens)
     "django.contrib.auth.backends.ModelBackend",
 ]
 
