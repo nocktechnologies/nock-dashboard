@@ -2,11 +2,8 @@ from django.contrib import admin
 
 from .models import (
     ConsolidationLog,
-    DiaryEntry,
     HandoffEntry,
     HandoffVersion,
-    IdentityDocument,
-    IdentityDocumentVersion,
     MemoryEntry,
     ResearchChunk,
     ResearchDocument,
@@ -32,40 +29,6 @@ class ConsolidationLogAdmin(admin.ModelAdmin):
         "entries_promoted", "entries_archived", "entries_pruned",
         "contradictions_resolved", "notes",
     )
-
-
-@admin.register(DiaryEntry)
-class DiaryEntryAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "category", "source", "session_date", "word_count", "entry_date")
-    list_filter = ("category", "source", "session_date")
-    search_fields = ("title", "content", "tags")
-    readonly_fields = ("created_at", "updated_at", "word_count", "asana_comment_gid", "migrated_at")
-    date_hierarchy = "session_date"
-
-
-@admin.register(IdentityDocument)
-class IdentityDocumentAdmin(admin.ModelAdmin):
-    list_display = ("title", "slug", "version", "document_type", "is_active", "load_order", "updated_at")
-    list_filter = ("document_type", "is_active")
-    search_fields = ("title", "slug", "content")
-    prepopulated_fields = {"slug": ("title",)}
-    readonly_fields = ("version", "created_at", "updated_at")
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-
-@admin.register(IdentityDocumentVersion)
-class IdentityDocumentVersionAdmin(admin.ModelAdmin):
-    list_display = ("document", "version", "title", "updated_by", "created_at")
-    list_filter = ("document",)
-    readonly_fields = ("document", "version", "title", "content", "document_type", "updated_by", "created_at")
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 @admin.register(HandoffEntry)

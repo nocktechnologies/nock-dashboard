@@ -281,7 +281,7 @@ class HandoffVersion(models.Model):
 
 class ResearchDocument(models.Model):
     """
-    A source document from Mara's research vault.
+    A source document from the user's research vault.
     Each markdown file becomes one ResearchDocument. Content is split into
     ResearchChunks with embeddings for semantic search.
     """

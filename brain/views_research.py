@@ -1,6 +1,6 @@
 # brain/views_research.py
 """
-Research Library API — semantic search over Mara's research corpus.
+Research Library API — semantic search over the user's research corpus.
 
 Endpoints (all gated by require_brain_access):
     GET  /api/brain/research/search/?q=...&limit=10&topic=...

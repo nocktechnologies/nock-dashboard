@@ -303,7 +303,7 @@ class MorningNoteTest(ContinuityTestBase):
         note = generator.generate()
 
         self.assertIsNotNone(note)
-        self.assertIn("Mara's Morning Note", note)
+        self.assertIn("Morning Note", note)
         self.assertIn("What I'm thinking about", note)
         self.assertIn("What matters today", note)
         self.assertIn("A question for your commute", note)
