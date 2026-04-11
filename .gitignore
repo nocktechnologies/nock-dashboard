@@ -64,3 +64,4 @@ desktop/node_modules/
 # Workflow state checkpoint (never committed)
 .workflow-state.json
 nock-command-center/
+.claude/scheduled_tasks.lock
