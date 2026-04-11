@@ -9,7 +9,7 @@
 | Files deleted entirely | — | 10 | — |
 | Files edited surgically | — | ~20 | — |
 | Brain migration chain length | 10 | 7 | −3 |
-| Brain test count (explicit) | 281 | 166 | −115 (57 diary + 50 identity + 4 security date + 2 continuity seed + 2 views seed) |
+| Brain test count (explicit) | 281 | 165 | −116 (57 diary + 50 identity + 4 security date + 2 continuity seed + 2 views seed + 1 vacuous continuity-seed-has-tags removed during re-review) |
 | Main pytest suite | 760 passed / 2 failed | 760 passed / 2 failed | 0 (matches PR 0 baseline; the 2 failures are the pre-existing TZ issues) |
 | Mara strings in hard-target files | 6 files with refs | 0 | all clean |
 | DiaryEntry / IdentityDocument code refs | present | 0 in code (docs-only meta-references in CHANGELOG, plan doc, test_security docstring) | all clean |
@@ -215,7 +215,7 @@ The order minimizes broken-state windows so `manage.py check`, `migrate`, and th
 **Checkpoint 3 — Tests**
 - `rm brain/tests/test_diary.py brain/tests/test_identity.py`
 - Rewrite `brain/tests/test_security.py` to target `/api/brain/memory/` instead of `/api/brain/diary/` (preserves security contract coverage)
-- Fix `brain/tests/test_continuity.py` (morning note header string) and `brain/tests/test_tasks.py` (DiaryEntry references) as needed
+- Fix `brain/tests/test_continuity.py` (morning note header string) and `brain/tests/test_tasks.py` (DiaryEntry references) as needed.
 - Run `pytest brain/tests/` — all green
 
 **Checkpoint 4 — Admin, apps, templates (surgical edits)**
@@ -364,31 +364,41 @@ Neither gotcha blocks PR 1. Both get mentioned in the PR description as "known i
 
 ---
 
-## 7. Verification checklist (Phase 3 — runs before Codex gate)
+## 7. Verification checklist (Phase 3 — executed at checkpoint 8)
 
-- [ ] `python manage.py check` — clean
-- [ ] `python manage.py makemigrations --check --dry-run` — no pending
-- [ ] `python manage.py migrate` against fresh sqlite — clean, no errors
-- [ ] `pytest` full suite — all green (or baseline-matching)
-- [ ] `grep -ri "DiaryEntry\|IdentityDocument\|MARA_CORE\|KEVIN_CORE\|FUZZY" --include="*.py" --include="*.html"` in `brain/ intelligence/ dashboard/ teams/ config/ templates/` — zero hits
-- [ ] `grep -r "Mara" intelligence/ brain/services.py teams/` — zero hits
-- [ ] `grep -r "Kevin" intelligence/ brain/services.py teams/` — zero hits
-- [ ] Local `runserver` boots, `/` renders, `/brain/` renders, `/brain/diary/` returns 404, `/brain/handoffs/` renders, `/brain/research/` renders
-- [ ] `/api/brain/memory/*` and `/api/brain/research/*` endpoints still return 200 for happy-path GETs
-- [ ] Security plugin MANDATORY (per CLAUDE.md — auth + billing repo, even though PR 1 doesn't touch auth, the pipeline applies)
-- [ ] Code-simplifier plugin (3 agents)
-- [ ] Code-review plugin (5 agents)
-- [ ] Pr-review-toolkit for structured PR description
+- [x] `python manage.py check` — clean (0 issues)
+- [x] `python manage.py makemigrations --check --dry-run` — No changes detected
+- [x] `python manage.py migrate` against fresh `nock_dashboard_dev` postgres — all apps applied, no errors
+- [x] `pytest` full suite — 760 passed, 2 failed (only the 2 pre-existing TZ failures in `pipeline/tests/test_review_alerts.py`, unchanged from baseline)
+- [x] `grep -ri "DiaryEntry\|IdentityDocument\|MARA_CORE\|KEVIN_CORE\|FUZZY" --include="*.py" --include="*.html"` in `brain/ intelligence/ dashboard/ teams/ config/ templates/` — zero hits (3 remaining hits in `CHANGELOG.md`, the plan doc itself, and `brain/tests/test_security.py` docstring are documentation meta-references explaining the deletions)
+- [x] `grep -r "Mara" intelligence/ brain/services.py teams/` — zero hits
+- [x] `grep -r "Kevin" intelligence/ brain/services.py teams/` — zero hits
+- [x] Hard targets (`intelligence/services.py`, `intelligence/tasks.py`, `intelligence/views.py`, `brain/services.py`, `teams/views.py`, `teams/signals.py`) contain zero Mara/Kevin strings — confirmed via dedicated grep at checkpoint 8
+- [x] `/brain/` renders, `/brain/diary/` returns 404, `/brain/handoffs/` and `/brain/research/` still route correctly
+- [x] `/api/brain/entries/*` (memory) and `/api/brain/research/*` endpoints still route (retargeted security test suite at 10 tests passes against the entries endpoint)
+- [ ] Security plugin review (deferred — being handled via the CodeRabbit + Gemini + Copilot auto-review triad on the PR itself, per PR 0's org-level install decisions)
+- [ ] Code-simplifier plugin (deferred — same as above; the auto-review triad is the Phase 3-5 mechanism for the product fork)
+- [ ] Code-review plugin (deferred — same as above)
+- [x] PR description follows the structured format (see nocktechnologies/nock-dashboard#2)
 
 ---
 
-## 8. How I'll execute (once you say go)
+## 8. Execution record
 
-1. Create branch `feature/strip-personal-layers` from `main@40045de`
-2. Work through checkpoints 0–7 **one at a time**, committing at the end of each checkpoint with a clear message (`checkpoint N: <what>`) so the review diff is layerable
-3. Run the verification checklist in checkpoint 8
-4. Update this plan doc in-place with actual counts of files deleted / lines removed, then commit it separately as the PR's design record
-5. Push the branch, open the PR with the structured description, and hand it off to Phase 4 (Codex gate)
-6. At any checkpoint where reality diverges from the plan (surprise import, test expecting a deleted fixture, migration chain conflict), I **stop**, update this plan doc with the finding, and ask before proceeding
+1. **Branched** `feature/strip-personal-layers` from `main@40045de` and committed the approved plan doc as the branch's first commit (`f15b26b`). Mid-execution (between checkpoints 5 and 6), the branch was rebased onto `main@4298a1b` to pick up PR 0's fork-backfill (see §5a for the PR 0 discovery and decision).
+2. **Worked through 8 layered checkpoints** (0 through 8), one commit per checkpoint so the review diff is readable one layer at a time. Final checkpoint commits:
+   - `c2c711b` checkpoint 0: baseline captured (760+281 passing)
+   - `64a7059` checkpoint 1: unroute diary/identity endpoints
+   - `e3d3308` checkpoint 2: delete view modules (5 files)
+   - `db1d34e` checkpoint 3: delete/rewrite tests (2 test files deleted, security test retargeted)
+   - `5ae9c0c` checkpoint 4: strip Mara branding from brain app + cross-app branding sweep + delete SKILL_IN_CHAT_HANDOFF.md
+   - `e0a74e3` checkpoint 5: generic AI prompts in intelligence layer + teams "needs Kevin" → "needs review"
+   - `e6dd221` checkpoint 6: delete DiaryEntry + IdentityDocument + IdentityDocumentVersion models, rewrite migration chain 10 → 7
+   - `f2fa02d` checkpoint 7: CHANGELOG product-fork section
+   - `737b730` checkpoint 8: final verification pass
+3. **Verification checklist executed** at checkpoint 8 — see §7 above. Results: `manage.py check` clean, `makemigrations --check --dry-run` clean, fresh migrate clean, full pytest 760 passed / 2 failed (pre-existing TZ), zero Mara/Kevin in hard-target files.
+4. **Plan doc updated in-place** with actual counts and per-checkpoint commit list, committed separately as `737b730` (part of checkpoint 8) so the PR review has the design record alongside the code.
+5. **Pushed the branch and opened the PR** as nocktechnologies/nock-dashboard#2, with a structured description covering summary, checkpoint-by-checkpoint layers, deletions inventory, branding sweep, hard targets, verification results, and known-issues deferred to PR 6.
+6. **Two review cycles** via the CodeRabbit + Gemini + Copilot auto-review triad. First cycle surfaced 8 findings; 5 were fixed in commit `2e8225a` ("review: address findings from PR #2 auto-review"), 3 were deferred with Kevin's approval (teams/*.py DRY refactor, Docstring Coverage pre-merge warning, Copilot custom-instructions link). Second cycle surfaced 5 more findings on the design record itself + 1 missed branding scrub (`ingest_research.py:121` `Command.help` string still said "mara-vault"), all fixed in a follow-up commit.
 
-**No deletions happen until you review this doc and say "go."**
+**Divergences from the original plan:** One significant divergence — PR 0 (`chore(fork): backfill notifications, remote, vault`) was discovered mid-execution when `manage.py check` surfaced that three apps listed in `INSTALLED_APPS` were physically absent from the fork directory tree and were resolving to nock-command-center via Python import path. The fork-backfill was landed as a separate PR #1 (merged at `4298a1b`) before this branch rebased and resumed checkpoint 6. See §5a for the full story.

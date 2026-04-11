@@ -118,7 +118,7 @@ def _topic_from_path(rel_path: Path, source_root: Path) -> str:
 
 
 class Command(BaseCommand):
-    help = "Walk a mara-vault directory and import markdown files into ResearchDocument."
+    help = "Walk a research-vault directory and import markdown files into ResearchDocument."
 
     def add_arguments(self, parser) -> None:  # type: ignore[no-untyped-def]
         parser.add_argument("vault_path", type=str, help="Absolute path to the vault root")
