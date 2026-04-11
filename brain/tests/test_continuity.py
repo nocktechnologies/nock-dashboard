@@ -303,7 +303,10 @@ class MorningNoteTest(ContinuityTestBase):
         note = generator.generate()
 
         self.assertIsNotNone(note)
-        self.assertIn("Morning Note", note)
+        # Anchor the Morning Note check to the first line so a header regression
+        # (e.g. the "Morning Note" text moving into the body) can't be masked
+        # by a false-positive match elsewhere in the string.
+        self.assertIn("Morning Note", note.splitlines()[0])
         self.assertIn("What I'm thinking about", note)
         self.assertIn("What matters today", note)
         self.assertIn("A question for your commute", note)
@@ -344,12 +347,6 @@ class MorningNoteTest(ContinuityTestBase):
         # Should only have first 3 sentences
         sentence_count = thinking.count(".")
         self.assertLessEqual(sentence_count, 4)  # 3 sentences + trailing period
-
-
-    def test_continuity_seed_has_tags(self) -> None:
-        for entry in MemoryEntry.objects.filter(category="continuity"):
-            self.assertIsInstance(entry.tags, list)
-            self.assertGreater(len(entry.tags), 0, f"{entry.key} has no tags")
 
 
 # --- Auth Tests ---

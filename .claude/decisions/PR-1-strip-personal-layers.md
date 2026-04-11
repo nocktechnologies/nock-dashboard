@@ -1,8 +1,8 @@
 # PR 1 — Strip Personal Layers from Nock Dashboard
 
-**Status:** EXECUTED 2026-04-11 — checkpoints 0-8 complete, ready to push + open PR
+**Status:** EXECUTED 2026-04-11 — checkpoints 0-8 complete, PR opened as nocktechnologies/nock-dashboard#2
 
-### Actual counts (post-execution, captured at checkpoint 8)
+## Actual counts (post-execution, captured at checkpoint 8)
 
 | Metric | Before | After | Delta |
 |---|---|---|---|
@@ -36,9 +36,9 @@
 6. `.claude/review/PIPELINE.md` "Mara reviews" stays — in the product context Mara is the AI architecture reviewer role, not a personal artifact
 7. Code-level brand stays "NockCC" until PR 5/6 — no display-brand changes in PR 1
 **Owner:** Kit (Claude)
-**Branch:** `feature/strip-personal-layers` (not yet created)
-**Depends on:** `main` at `40045de` (nested repo cleanup commit)
-**Target:** First PR in the product-fork pipeline. Full 7-phase engineering standards apply.
+**Branch:** `feature/strip-personal-layers` (created 2026-04-11, 10 checkpoint commits pushed, PR open as nocktechnologies/nock-dashboard#2)
+**Depends on:** `main` at `4298a1b` (the merge commit for PR 0 — `chore(fork): backfill notifications, remote, vault`). The original plan referenced `40045de` but that base was superseded mid-execution by the fork-backfill work; feature/strip-personal-layers was rebased onto PR 0's merge commit before checkpoint 6 landed.
+**Target:** First real feature PR in the product-fork pipeline. Full 7-phase engineering standards apply.
 
 ---
 
@@ -79,7 +79,7 @@ Scanned at 2026-04-11. `terminal-electron/node_modules/**` and `docs/superpowers
 
 ### 2b. Files to delete entirely
 
-```
+```text
 brain/diary_views.py                                   # 446+ lines, all diary API views
 brain/views_identity.py                                # identity CRUD + /boot endpoint
 brain/management/commands/migrate_diary_from_asana.py  # one-shot Asana importer
@@ -268,7 +268,7 @@ Then the PR heads into Phase 4 (Codex gate), Phase 5 (push + auto-review), Phase
 The trick: we want a clean linear migration chain with no dangling references to deleted models, and no prod-DB to worry about.
 
 **Current chain:**
-```
+```text
 0001_initial             → MemoryEntry
 0002_seed_memory_entries → data: seeds Mara-specific memories (delete content → no-op)
 0003_add_continuity_and_consolidation_log → continuity category + ConsolidationLog
@@ -282,7 +282,7 @@ The trick: we want a clean linear migration chain with no dangling references to
 ```
 
 **Target chain:**
-```
+```text
 0001_initial                            → unchanged
 0002_seed_memory_entries                → content replaced with empty no-op, number kept
 0003_add_continuity_and_consolidation_log → unchanged
