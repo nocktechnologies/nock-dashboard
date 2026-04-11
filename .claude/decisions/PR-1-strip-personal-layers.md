@@ -300,6 +300,32 @@ class Migration(migrations.Migration):
 
 ---
 
+## 5a. Baseline captured — 2026-04-11 (checkpoint 0)
+
+Branch: `feature/strip-personal-layers` from `main@40045de`
+Python: 3.12.12, Django 5.0.4, venv at `.venv/`
+
+**`python manage.py check`:** clean (0 issues)
+
+**`python manage.py migrate` against fresh sqlite:** clean — all 10 brain migrations apply (0001..0010), other apps also apply without errors. Confirms the baseline chain is self-consistent before I start rewriting it.
+
+**Main test suite** (pytest.ini testpaths): **586 passed, 2 failed in 62s**
+- `pipeline/tests/test_review_alerts.py::TelegramNotifierTests::test_not_quiet_hours`
+- `pipeline/tests/test_review_alerts.py::TelegramNotifierTests::test_quiet_hours_midnight_crossing`
+- Both are pre-existing time/TZ-dependent failures unrelated to PR 1 scope. **Treat as baseline-red** — any state where these are the only failures after my changes is still green for PR 1 purposes.
+
+**Brain test suite** (run explicitly — see gotcha #1 below): **281 passed in 45s**
+- test_continuity: 30, test_diary: 57 (will delete), test_handoffs: 36, test_identity: 50 (will delete), test_research: 54, test_security: 14 (will rewrite), test_tasks: 7, test_views: 33
+- Post-strip expected count: **281 − 57 − 50 = 174 passing brain tests**, plus the rewritten security test file against `/api/brain/memory/` (target: keep the 14 count, same assertions, different URL)
+
+### Gotchas discovered during baseline (latent — NOT PR 1 scope to fix)
+
+1. **`pytest.ini` does not include `brain/tests` in `testpaths`.** Brain app tests are invisible to default `pytest` invocations — they only run when you explicitly `pytest brain/tests`. This means the brain app has had a silent test-coverage hole in CI for however long this has been the case. **Logging this in CHANGELOG as a known issue** and fixing it should be a separate cleanup PR (or folded into PR 6 docs/deployment). Adding `brain/tests` to `testpaths` in this PR would cause the 2 diary test failures from my own deletions to show up in the main `pytest` run before checkpoint 3 completes — which is fine actually, but it's still scope creep I'd rather avoid in PR 1.
+
+2. **`pytest.ini` lists `mcp_server/tests` in `testpaths` but the directory does not exist in this fork.** pytest silently skips missing testpaths. Not PR 1 scope — the MCP server itself is absent from the fork and adding it is future work.
+
+Neither gotcha blocks PR 1. Both get mentioned in the PR description as "known issues observed during baseline, out of scope."
+
 ## 6. Out of scope for PR 1
 
 - Multi-tenant auth (PR 2 — django-allauth)
