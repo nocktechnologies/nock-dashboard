@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('brain', '0009_research_library'),
+        ('brain', '0006_research_library'),
     ]
 
     operations = [

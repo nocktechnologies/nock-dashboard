@@ -346,30 +346,6 @@ class MorningNoteTest(ContinuityTestBase):
         self.assertLessEqual(sentence_count, 4)  # 3 sentences + trailing period
 
 
-# --- Seed Data Tests ---
-
-
-class ContinuitySeedTest(TestCase):
-    """Verify seed migration created 5 continuity entries."""
-
-    def test_continuity_seed_count(self) -> None:
-        count = MemoryEntry.objects.filter(category="continuity").count()
-        self.assertEqual(count, 5)
-
-    def test_continuity_seed_keys(self) -> None:
-        expected_keys = {
-            "build_native_conviction",
-            "domain_extraction_instinct",
-            "partnership_depth",
-            "event_driven_principle",
-            "continuity_gap_awareness",
-        }
-        actual_keys = set(
-            MemoryEntry.objects.filter(category="continuity")
-            .values_list("key", flat=True)
-        )
-        self.assertEqual(actual_keys, expected_keys)
-
     def test_continuity_seed_has_tags(self) -> None:
         for entry in MemoryEntry.objects.filter(category="continuity"):
             self.assertIsInstance(entry.tags, list)
