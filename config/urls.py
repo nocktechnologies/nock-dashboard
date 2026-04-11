@@ -5,7 +5,6 @@ from django.urls import include, path
 
 from brain import views_handoffs, views_research
 from brain import views as brain_views
-from core.oauth.urls import oauth_urlpatterns, wellknown_urlpatterns
 from crm.views import contacts_api, deals_api
 from intelligence import views as intelligence_views
 from remote import views as remote_views
@@ -15,12 +14,6 @@ from vault import views as vault_views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    # OAuth 2.1 shim for the MCP Streamable HTTP transport. Two prefixes:
-    # ``/.well-known/*`` for RFC 9728/8414 discovery, ``/oauth/*`` for the
-    # register/authorize/token endpoints. Gated on NOCKCC_OAUTH_ENABLED —
-    # when the flag is off every endpoint returns 404.
-    path(".well-known/", include((wellknown_urlpatterns, "wellknown"))),
-    path("oauth/", include((oauth_urlpatterns, "oauth"))),
     path("", include("dashboard.urls", namespace="dashboard")),
     path("", include("pipeline.urls", namespace="pipeline")),
     path("", include("tasks.urls", namespace="tasks")),
