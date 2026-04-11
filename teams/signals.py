@@ -212,7 +212,7 @@ def on_prompt_pr_review(repo_full_name: str, pr_number: int, status: str) -> Non
                 execution.save(update_fields=["result"])
                 with contextlib.suppress(OSError, ValueError):
                     TelegramNotifier.send(
-                        f"\u26a0\ufe0f PR #{pr_number} exceeded max review cycles — needs Kevin"
+                        f"\u26a0\ufe0f PR #{pr_number} exceeded max review cycles — needs review"
                     )
             else:
                 with contextlib.suppress(OSError, ValueError):

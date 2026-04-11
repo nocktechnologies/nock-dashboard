@@ -989,7 +989,7 @@ def prompt_review(request: HttpRequest, slug: str) -> JsonResponse:
     if execution.review_cycles >= execution.max_review_cycles:
         execution.result = "review_requested"
         execution.save(update_fields=["result"])
-        _notify_team(f"\u26a0\ufe0f PR #{prompt.pr_number or '?'} exceeded max review cycles — needs Kevin")
+        _notify_team(f"\u26a0\ufe0f PR #{prompt.pr_number or '?'} exceeded max review cycles — needs review")
     else:
         _notify_team(
             f"\U0001f504 PR #{prompt.pr_number or '?'} needs revision "

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 def generate_morning_question() -> str | None:
     """Use Claude to generate a contextual morning question.
 
-    Returns a single reflective question for Kevin's morning commute,
+    Returns a single reflective question based on recent project context,
     or None if the API is unavailable.
     """
     from brain.models import MemoryEntry
@@ -33,10 +33,11 @@ def generate_morning_question() -> str | None:
             "content": f"Based on recent context:\n{context}\n\nGenerate one morning question.",
         }],
         system=(
-            "You are Mara, generating a single thoughtful question for Kevin's "
-            "morning commute. The question should be reflective, not task-oriented. "
-            "It can be about the business, personal growth, or the partnership. "
-            "One question only, no preamble, no quotes. Keep it under 30 words."
+            "Generate a single thoughtful reflective question based on the "
+            "user's recent project context. The question should be reflective, "
+            "not task-oriented. It can be about the business, strategy, or "
+            "decisions to revisit. One question only, no preamble, no quotes. "
+            "Keep it under 30 words."
         ),
         max_tokens=150,
     )
