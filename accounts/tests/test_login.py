@@ -58,7 +58,7 @@ class LoginPageTests(TestCase):
             primary=True,
             verified=False,
         )
-        resp = self.client.post(self.url, {
+        self.client.post(self.url, {
             "login": "unverified@example.com",
             "password": "UnverifiedPass123!",
         })

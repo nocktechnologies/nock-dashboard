@@ -1,13 +1,14 @@
 """Tests for the allauth logout flow."""
+from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
+
+from allauth.account.models import EmailAddress
 
 
 class LogoutTests(TestCase):
     def setUp(self):
         self.url = reverse("account_logout")
-        from django.contrib.auth.models import User
-        from allauth.account.models import EmailAddress
         self.user = User.objects.create_user(
             username="logouttest", email="logout@example.com", password="LogoutPass123!"
         )
@@ -25,5 +26,5 @@ class LogoutTests(TestCase):
     def test_logout_redirects_to_login(self):
         self.client.force_login(self.user)
         resp = self.client.post(self.url)
-        self.assertIn(resp.status_code, [302])
+        self.assertEqual(resp.status_code, 302)
         self.assertIn("/accounts/login", resp.url)

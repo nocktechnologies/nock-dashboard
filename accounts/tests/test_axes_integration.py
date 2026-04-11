@@ -1,8 +1,9 @@
 """Tests that django-axes brute-force lockout still works through allauth."""
+from django.conf import settings
+from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
-from django.contrib.auth.models import User
 
 from allauth.account.models import EmailAddress
 
@@ -11,8 +12,8 @@ class AxesAllauthIntegrationTests(TestCase):
     """Verify axes' brute-force lockout still fires through the allauth backend.
 
     Axes wraps authenticate() — allauth uses authenticate() — so axes should
-    capture failures. We test 5 failed logins (the AXES_FAILURE_LIMIT) and
-    verify lockout, then test that successful login resets the counter.
+    capture failures. We test AXES_FAILURE_LIMIT failed logins and verify
+    lockout, then test that successful login resets the counter.
     """
 
     def setUp(self):
@@ -36,21 +37,22 @@ class AxesAllauthIntegrationTests(TestCase):
         return resp.status_code
 
     def test_five_failures_trigger_lockout(self):
-        # The 5th failure is what triggers the lockout response via axes signal.
-        # Attempts 1-4 return 200 (login page with error).
-        for _ in range(4):
-            status = self._attempt_login("wrongpassword")
-            self.assertEqual(status, 200, "Attempts 1-4 should not yet be locked out")
+        limit = settings.AXES_FAILURE_LIMIT
 
-        # The 5th failure triggers the lockout — axes returns 429/403 for this request.
+        # The first (limit - 1) failures should not yet trigger lockout.
+        for _ in range(limit - 1):
+            status = self._attempt_login("wrongpassword")
+            self.assertEqual(status, 200, f"Attempts 1-{limit - 1} should not yet be locked out")
+
+        # The Nth failure triggers the lockout — axes returns 429/403 for this request.
         lockout_status = self._attempt_login("wrongpassword")
         self.assertIn(
             lockout_status, [403, 429],
-            f"5th failure should trigger lockout response, got {lockout_status}",
+            f"Failure #{limit} should trigger lockout response, got {lockout_status}",
         )
 
         # After lockout, correct credentials are also blocked (axes blocks authenticate()).
-        correct_status = self._attempt_login("AxesPass123!")
+        self._attempt_login("AxesPass123!")
         self.assertNotIn(
             self.client.session.get("_auth_user_id"),
             [str(self.user.pk)],
@@ -59,17 +61,25 @@ class AxesAllauthIntegrationTests(TestCase):
 
     def test_successful_login_resets_axes_counter(self):
         """AXES_RESET_ON_SUCCESS means a correct login clears the failure count."""
-        # 4 failures (one below the limit)
-        for _ in range(4):
+        limit = settings.AXES_FAILURE_LIMIT
+
+        # (limit - 1) failures — one below the lockout threshold
+        for _ in range(limit - 1):
             self._attempt_login("wrongpassword")
-        # Successful login clears the counter
+
+        # Successful login clears the counter; verify the user is actually logged in
         self._attempt_login("AxesPass123!")
+        self.assertIn(
+            "_auth_user_id", self.client.session,
+            "Successful login after failures should authenticate the user",
+        )
         self.client.logout()
-        # Subsequent failures should NOT trigger lockout immediately
+
+        # One subsequent failure should NOT trigger lockout (counter was reset)
         self._attempt_login("wrongpassword")
         resp = self.client.post(self.login_url, {
-            "login": "axes@example.com",
+            "login": self.user.email,
             "password": "wrongpassword",
         })
-        # Should still be 200 (error page) not 403 (lockout)
+        # Should still be 200 (error page) not 403/429 (lockout)
         self.assertEqual(resp.status_code, 200)

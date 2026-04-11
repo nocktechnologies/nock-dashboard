@@ -324,7 +324,14 @@ EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+# Some providers (e.g. port 465) use implicit TLS — set EMAIL_USE_SSL=True
+# and EMAIL_USE_TLS=False. Mutually exclusive with EMAIL_USE_TLS.
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@localhost")
+# Note: a fail-fast guard against the console backend in production belongs
+# in a Django system check (accounts/checks.py), not at module level here —
+# module-level code in base.py runs before child settings override DEBUG.
+# PR 6 (production settings) will add accounts.E001 via @register().
 
 # ── django-axes: brute-force login protection ────────────────────────────────
 AXES_FAILURE_LIMIT = 5
