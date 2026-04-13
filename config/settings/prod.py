@@ -6,7 +6,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = env.list(  # noqa: F405
     "ALLOWED_HOSTS",
-    default=["web-production-b0528.up.railway.app"],
+    default=["localhost"],
 )
 
 # Security headers
@@ -58,10 +58,10 @@ LOGGING = {
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = "django-db"
 
-# CSRF trusted origins (Railway production domain)
+# CSRF trusted origins — set via CSRF_TRUSTED_ORIGINS env var on Railway
 CSRF_TRUSTED_ORIGINS = env.list(  # noqa: F405
     "CSRF_TRUSTED_ORIGINS",
-    default=["https://web-production-b0528.up.railway.app"],
+    default=[],
 )
 
 # Channels: same Redis for WebSocket layer
