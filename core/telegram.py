@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+import django.utils.timezone as dj_timezone
 import httpx
 from django.conf import settings
 
@@ -12,6 +13,12 @@ logger = logging.getLogger(__name__)
 
 class TelegramNotifier:
     BASE_URL = "https://api.telegram.org/bot{token}/sendMessage"
+
+    @classmethod
+    def _is_quiet_hours(cls) -> bool:
+        """Return True if current local time is in quiet hours (11pm–7am MST)."""
+        hour = dj_timezone.localtime(dj_timezone.now()).hour
+        return hour >= 23 or hour < 7
 
     @classmethod
     def send(cls, message: str, parse_mode: str = "Markdown") -> dict | None:

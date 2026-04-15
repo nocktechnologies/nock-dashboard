@@ -19,8 +19,8 @@ def register_repos(apps, schema_editor):
             name=repo["name"],
             defaults={
                 "github_id": repo["github_id"],
-                "webhook_secret": secret,
-                "is_active": True,
+                "webhook_secret": "",
+                "is_active": False,
             },
         )
 
