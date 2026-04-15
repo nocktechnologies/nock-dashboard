@@ -15,7 +15,7 @@ class WorkspaceMiddleware:
     - Unauthenticated requests: request.workspace = None.
     - Authenticated users with accepted membership: request.workspace = that workspace.
     - Authenticated users with no accepted membership: request.workspace = None.
-    - Staff users may pass X-Workspace-Slug header to override (for tooling/scripts).
+    - Superusers may pass X-Workspace-Slug header to override (for tooling/scripts).
     """
 
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
@@ -30,8 +30,8 @@ class WorkspaceMiddleware:
         if user is None or not user.is_authenticated:
             return None
 
-        # Staff override via X-Workspace-Slug header (for scripts/tooling only).
-        if user.is_staff:
+        # Superuser override via X-Workspace-Slug header (for scripts/tooling only).
+        if user.is_superuser:
             slug = request.headers.get("X-Workspace-Slug")
             if slug:
                 try:

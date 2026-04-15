@@ -31,19 +31,20 @@ def index(request: HttpRequest) -> HttpResponse:
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
 
-    open_prs = PullRequest.objects.filter(state=PullRequest.State.OPEN).select_related("repository")
-    merged_this_week = PullRequest.objects.filter(
+    pr_qs = PullRequest.tenant_objects.for_request(request)
+    open_prs = pr_qs.filter(state=PullRequest.State.OPEN).select_related("repository")
+    merged_this_week = pr_qs.filter(
         state=PullRequest.State.MERGED, merged_at__gte=week_ago
     ).count()
 
     last_5_merged = (
-        PullRequest.objects.filter(state=PullRequest.State.MERGED)
+        pr_qs.filter(state=PullRequest.State.MERGED)
         .select_related("repository")
         .order_by("-merged_at")[:5]
     )
 
     failed_ci_prs = (
-        PullRequest.objects.filter(
+        pr_qs.filter(
             state=PullRequest.State.OPEN, ci_status=PullRequest.CIStatus.FAILED
         )
         .select_related("repository")
@@ -54,7 +55,7 @@ def index(request: HttpRequest) -> HttpResponse:
     # Materialise to a list to avoid double DB query (exists() + count())
     avg_merge_hours = None
     merged_list = list(
-        PullRequest.objects.filter(
+        pr_qs.filter(
             state=PullRequest.State.MERGED,
             merged_at__gte=month_ago,
             opened_at__isnull=False,
@@ -71,7 +72,7 @@ def index(request: HttpRequest) -> HttpResponse:
             avg_merge_hours = round(total_seconds / count / 3600, 1)
 
     # Latest webhook received
-    latest_event = PREvent.objects.order_by("-created_at").first()
+    latest_event = PREvent.tenant_objects.for_request(request).order_by("-created_at").first()
 
     overdue_count = 0
     due_today_count = 0
@@ -79,14 +80,15 @@ def index(request: HttpRequest) -> HttpResponse:
     try:
         from tasks.models import AsanaTask
         today = now.date()
-        overdue_count = AsanaTask.objects.filter(
+        task_qs = AsanaTask.tenant_objects.for_request(request)
+        overdue_count = task_qs.filter(
             completed=False, due_on__lt=today, due_on__isnull=False
         ).count()
-        due_today_count = AsanaTask.objects.filter(
+        due_today_count = task_qs.filter(
             completed=False, due_on=today
         ).count()
         upcoming_tasks = (
-            AsanaTask.objects.filter(completed=False)
+            task_qs.filter(completed=False)
             .select_related("project")
             .annotate(
                 priority_rank=Case(
@@ -109,8 +111,8 @@ def index(request: HttpRequest) -> HttpResponse:
         "merged_this_week": merged_this_week,
         "last_5_merged": last_5_merged,
         "failed_ci_prs": failed_ci_prs,
-        "total_repos": Repository.objects.filter(is_active=True).count(),
-        "total_prs": PullRequest.objects.count(),
+        "total_repos": Repository.tenant_objects.for_request(request).filter(is_active=True).count(),
+        "total_prs": pr_qs.count(),
         "avg_merge_hours": avg_merge_hours,
         "latest_event": latest_event,
         "upcoming_tasks": upcoming_tasks,

@@ -45,6 +45,11 @@ class DashboardViewTests(TestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(username="testuser", password="testpass")
         self.client.force_login(self.user)
+        self.workspace = Workspace.objects.create(name="Test Workspace", owner=self.user)
+        WorkspaceMembership.objects.create(
+            workspace=self.workspace, user=self.user, role=WorkspaceMembership.ROLE_OWNER,
+            accepted_at=timezone.now(),
+        )
 
     def test_dashboard_loads_empty(self) -> None:
         resp = self.client.get("/")
@@ -52,9 +57,9 @@ class DashboardViewTests(TestCase):
         self.assertTemplateUsed(resp, "dashboard/index.html")
 
     def test_dashboard_shows_open_pr_count(self) -> None:
-        repo = make_repo()
-        make_pr(repo, 1, state="open")
-        make_pr(repo, 2, state="open")
+        repo = make_repo(workspace=self.workspace)
+        make_pr(repo, 1, state="open", workspace=self.workspace)
+        make_pr(repo, 2, state="open", workspace=self.workspace)
         resp = self.client.get("/")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.context["open_pr_count"], 2)
@@ -64,8 +69,8 @@ class DashboardViewTests(TestCase):
         self.assertContains(resp, "No merged PRs yet")
 
     def test_dashboard_shows_failed_ci(self) -> None:
-        repo = make_repo()
-        make_pr(repo, 1, state="open", ci_status="failed")
+        repo = make_repo(workspace=self.workspace)
+        make_pr(repo, 1, state="open", ci_status="failed", workspace=self.workspace)
         resp = self.client.get("/")
         self.assertEqual(len(resp.context["failed_ci_prs"]), 1)
 

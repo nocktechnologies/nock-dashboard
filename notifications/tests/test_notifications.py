@@ -7,8 +7,10 @@ from unittest.mock import MagicMock, patch
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from notifications.models import NotificationChannel, NotificationLog, NotificationRule
+from workspaces.models import Workspace, WorkspaceMembership
 from notifications.notifier import (
     format_discord_message,
     format_slack_message,
@@ -136,6 +138,11 @@ class NotificationViewTests(TestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(username="testuser", password="testpass")
         self.client.force_login(self.user)
+        self.workspace = Workspace.objects.create(name="Test Workspace", owner=self.user)
+        WorkspaceMembership.objects.create(
+            workspace=self.workspace, user=self.user, role=WorkspaceMembership.ROLE_OWNER,
+            accepted_at=timezone.now(),
+        )
 
     def test_notification_list_returns_200(self) -> None:
         resp = self.client.get("/notifications/")
@@ -144,9 +151,11 @@ class NotificationViewTests(TestCase):
     def test_notification_list_shows_logs(self) -> None:
         ch = NotificationChannel.objects.create(
             name="Slack", channel_type="slack", webhook_url="https://test.com",
+            workspace=self.workspace,
         )
         NotificationLog.objects.create(
             channel=ch, event_type="pr_merged", success=True,
+            workspace=self.workspace,
         )
         resp = self.client.get("/notifications/")
         self.assertContains(resp, "pr_merged")

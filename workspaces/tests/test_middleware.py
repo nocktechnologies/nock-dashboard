@@ -38,23 +38,30 @@ class TestWorkspaceMiddleware:
         self.middleware(request)
         assert request.workspace is None
 
-    def test_staff_override_via_header(self, db, workspace_b, user_a):
-        from django.utils import timezone
-        user_a.is_staff = True
+    def test_superuser_override_via_header(self, workspace_a, workspace_b, user_a):
+        # Superusers can target any workspace via X-Workspace-Slug regardless of membership.
+        # user_a has membership in workspace_a only; the header selects workspace_b.
+        user_a.is_superuser = True
         user_a.save()
-        # Give user_a membership in workspace_a too (they need one to log in, but override goes to workspace_b)
-        WorkspaceMembership.objects.create(
-            workspace=workspace_b, user=user_a,
-            role=WorkspaceMembership.ROLE_MEMBER, accepted_at=timezone.now()
-        )
         request = self.factory.get("/", HTTP_X_WORKSPACE_SLUG=workspace_b.slug)
         request.user = user_a
         self.middleware(request)
         assert request.workspace == workspace_b
 
+    def test_staff_only_header_override_ignored(self, workspace_a, workspace_b, user_a):
+        # Staff (non-superuser) should NOT get the workspace header override.
+        user_a.is_staff = True
+        user_a.is_superuser = False
+        user_a.save()
+        request = self.factory.get("/", HTTP_X_WORKSPACE_SLUG=workspace_b.slug)
+        request.user = user_a
+        self.middleware(request)
+        # user_a has no membership in workspace_b, so falls back to workspace_a
+        assert request.workspace == workspace_a
+
     def test_non_staff_header_override_ignored(self, workspace_a, workspace_b, user_a):
         request = self.factory.get("/", HTTP_X_WORKSPACE_SLUG=workspace_b.slug)
         request.user = user_a
         self.middleware(request)
-        # Should NOT resolve to workspace_b (user_a has no membership in workspace_b and isn't staff)
+        # Should NOT resolve to workspace_b (user_a has no membership in workspace_b and isn't superuser)
         assert request.workspace != workspace_b
