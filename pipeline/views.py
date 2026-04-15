@@ -131,7 +131,7 @@ def pipeline_list(request: HttpRequest) -> HttpResponse:
     from .filters import PullRequestFilter
 
     qs = (
-        PullRequest.objects.select_related("repository")
+        PullRequest.tenant_objects.for_request(request).select_related("repository")
         .order_by("-opened_at")
     )
     f = PullRequestFilter(request.GET, queryset=qs)
@@ -150,16 +150,16 @@ def pipeline_list(request: HttpRequest) -> HttpResponse:
         "filter": f,
         "prs": prs,
         "sort": sort,
-        "repos": Repository.objects.filter(is_active=True).order_by("owner", "name"),
+        "repos": Repository.tenant_objects.for_request(request).filter(is_active=True).order_by("owner", "name"),
         "query_without_sort": query_without_sort,
     })
 
 
 @login_required
 def pr_detail(request: HttpRequest, repo_owner: str, repo_name: str, pr_number: int) -> HttpResponse:
-    repo = get_object_or_404(Repository, owner=repo_owner, name=repo_name)
+    repo = get_object_or_404(Repository.tenant_objects.for_request(request), owner=repo_owner, name=repo_name)
     pr = get_object_or_404(
-        PullRequest.objects.select_related("repository"),
+        PullRequest.tenant_objects.for_request(request).select_related("repository"),
         repository=repo,
         number=pr_number,
     )

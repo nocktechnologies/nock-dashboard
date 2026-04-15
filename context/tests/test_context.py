@@ -16,6 +16,7 @@ from django.utils import timezone
 from context.github_sync import _content_hash, sync_document
 from context.models import ContextDocument, ContextSnapshot
 from pipeline.models import Repository
+from workspaces.models import Workspace, WorkspaceMembership
 
 _TEST_FERNET_KEYS = [os.environ.get("TEST_FERNET_KEY", "")]
 _TEST_WEBHOOK_SECRET = secrets.token_hex(16)
@@ -238,11 +239,17 @@ class ContextViewTests(TestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(username="testuser", password="testpass")
         self.client.force_login(self.user)
+        self.workspace = Workspace.objects.create(name="Test Workspace", owner=self.user)
+        WorkspaceMembership.objects.create(
+            workspace=self.workspace, user=self.user, role=WorkspaceMembership.ROLE_OWNER,
+            accepted_at=timezone.now(),
+        )
         self.repo = Repository.objects.create(
             name="project-nexus",
             owner="kkwills13",
             github_id=300004,
             webhook_secret=_TEST_WEBHOOK_SECRET,
+            workspace=self.workspace,
         )
 
     def test_context_list_returns_200(self) -> None:
@@ -255,6 +262,7 @@ class ContextViewTests(TestCase):
             doc_type="claude_md",
             file_path="CLAUDE.md",
             title="CLAUDE.md",
+            workspace=self.workspace,
         )
         resp = self.client.get("/context/")
         self.assertEqual(resp.status_code, 200)
@@ -266,6 +274,7 @@ class ContextViewTests(TestCase):
             doc_type="claude_md",
             file_path="CLAUDE.md",
             title="CLAUDE.md",
+            workspace=self.workspace,
         )
         resp = self.client.get("/context/?repo=project-nexus")
         self.assertEqual(resp.status_code, 200)
@@ -277,6 +286,7 @@ class ContextViewTests(TestCase):
             doc_type="claude_md",
             file_path="CLAUDE.md",
             title="CLAUDE.md",
+            workspace=self.workspace,
         )
         resp = self.client.get(f"/context/{doc.pk}/")
         self.assertEqual(resp.status_code, 200)
@@ -288,6 +298,7 @@ class ContextViewTests(TestCase):
             doc_type="claude_md",
             file_path="CLAUDE.md",
             title="CLAUDE.md",
+            workspace=self.workspace,
         )
         ContextSnapshot.objects.create(
             document=doc,

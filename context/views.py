@@ -14,7 +14,7 @@ from .models import ContextDocument
 @login_required
 def context_list(request: HttpRequest) -> HttpResponse:
     """Context document inventory page with filters."""
-    qs = ContextDocument.objects.filter(is_active=True).select_related("repository").order_by("repository__name", "file_path")
+    qs = ContextDocument.tenant_objects.for_request(request).filter(is_active=True).select_related("repository").order_by("repository__name", "file_path")
 
     # Filters
     repo_filter = request.GET.get("repo", "")
@@ -35,7 +35,7 @@ def context_list(request: HttpRequest) -> HttpResponse:
         qs = qs.order_by(sort)
 
     # Stats
-    all_active = ContextDocument.objects.filter(is_active=True)
+    all_active = ContextDocument.tenant_objects.for_request(request).filter(is_active=True)
     total_docs = all_active.count()
     stale_count = all_active.filter(is_stale=True).count()
     healthy_count = total_docs - stale_count
@@ -43,7 +43,7 @@ def context_list(request: HttpRequest) -> HttpResponse:
 
     return render(request, "context/list.html", {
         "documents": qs,
-        "repos": Repository.objects.filter(is_active=True).order_by("owner", "name"),
+        "repos": Repository.tenant_objects.for_request(request).filter(is_active=True).order_by("owner", "name"),
         "doc_type_choices": ContextDocument.DOC_TYPE_CHOICES,
         "filters": {"repo": repo_filter, "type": type_filter, "stale": stale_filter},
         "stats": {
@@ -60,7 +60,7 @@ def context_list(request: HttpRequest) -> HttpResponse:
 def context_detail(request: HttpRequest, doc_id: int) -> HttpResponse:
     """Document detail with snapshot timeline."""
     doc = get_object_or_404(
-        ContextDocument.objects.select_related("repository"),
+        ContextDocument.tenant_objects.for_request(request).select_related("repository"),
         pk=doc_id,
     )
     snapshots = doc.snapshots.order_by("-captured_at")[:50]
