@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 
+from core.managers import TenantManager
+
 
 class AsanaProject(models.Model):
     asana_gid = models.CharField(max_length=50, unique=True)
@@ -9,6 +11,16 @@ class AsanaProject(models.Model):
     is_active = models.BooleanField(default=True)
     last_synced = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="asana_projects",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["name"]
@@ -35,6 +47,16 @@ class AsanaSection(models.Model):
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="asana_sections",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["project__name", "order", "name"]
@@ -75,6 +97,16 @@ class AsanaTask(models.Model):
         db_index=True,
         help_text="Soft-delete timestamp set when task is deleted via the write-back API.",
     )
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="asana_tasks",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         # Default ordering is lexicographic on priority; views override this

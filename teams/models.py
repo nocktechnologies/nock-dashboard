@@ -2,6 +2,8 @@ from django.db import models
 from django.db.models import Count, Q, QuerySet
 from django.utils.text import slugify
 
+from core.managers import TenantManager
+
 
 class AgentTeam(models.Model):
     STATUS_CHOICES = [
@@ -16,6 +18,16 @@ class AgentTeam(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="planning")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="agent_teams",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-updated_at", "-id"]
@@ -56,6 +68,16 @@ class TeamMember(models.Model):
     current_task = models.ForeignKey(
         "TeamTask", on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_agent"
     )
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="team_members",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         unique_together = ["team", "agent_name"]
@@ -109,6 +131,16 @@ class TeamTask(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="team_tasks",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-priority", "created_at", "id"]
@@ -153,6 +185,16 @@ class TeamEvent(models.Model):
     task = models.ForeignKey(TeamTask, on_delete=models.SET_NULL, null=True, blank=True)
     member = models.ForeignKey(TeamMember, on_delete=models.SET_NULL, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="team_events",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-created_at", "-id"]
@@ -211,6 +253,16 @@ class PromptFile(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="prompt_files",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-priority", "created_at", "id"]
@@ -261,6 +313,16 @@ class PromptExecution(models.Model):
     review_cycles = models.IntegerField(default=0, help_text="How many review-fix cycles")
     max_review_cycles = models.IntegerField(default=3, help_text="Stop after this many cycles")
     notes = models.TextField(blank=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="prompt_executions",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-started_at", "id"]

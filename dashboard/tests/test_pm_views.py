@@ -1,12 +1,9 @@
 """
 Smoke tests for the PM plugin frontend views (dashboard/views.py::
-pm_dashboard and pm_project_detail) and the research browser view
-(brain/views.py::research_browser).
+pm_dashboard and pm_project_detail).
 
 These tests verify URL routing, template rendering, login enforcement,
-and the 404 path — they don't exercise the full DOM. Behaviour of the
-Alpine.js interactions is covered at the API level by the projects/
-and brain/ test suites.
+and the 404 path — they don't exercise the full DOM.
 """
 from __future__ import annotations
 
@@ -117,44 +114,3 @@ class PMProjectDetailSmokeTests(TestCase):
         self.assertNotContains(response, "renderTask")
 
 
-class ResearchBrowserSmokeTests(TestCase):
-    """The /brain/research/ semantic-search frontend."""
-
-    def setUp(self) -> None:
-        self.user = User.objects.create_user(
-            username="researchui", password=None, is_staff=True,
-        )
-        self.client.force_login(self.user)
-
-    def test_research_browser_renders(self) -> None:
-        response = self.client.get(reverse("brain:research"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Research Library")
-        # Alpine component + search endpoint are both named in the page.
-        self.assertContains(response, "researchBrowser(")
-        self.assertContains(response, "/api/brain/research/search/")
-
-    def test_research_browser_requires_login(self) -> None:
-        self.client.logout()
-        response = self.client.get(reverse("brain:research"))
-        self.assertEqual(response.status_code, 302)
-        self.assertIn("/accounts/login/", response.url)
-
-
-class SidebarNavTests(TestCase):
-    """Verify the new sidebar items appear on authenticated pages."""
-
-    def setUp(self) -> None:
-        self.user = User.objects.create_user(
-            username="navuser", password=None, is_staff=True,
-        )
-        self.client.force_login(self.user)
-
-    def test_sidebar_includes_research_projects(self) -> None:
-        # The brain index page extends base.html, so the sidebar renders.
-        # The Diary nav item was removed in the product-fork strip (PR 1);
-        # only Research and the PM plugin are asserted here.
-        response = self.client.get(reverse("brain:index"))
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'href="/brain/research/"')
-        self.assertContains(response, 'href="/pm/"')

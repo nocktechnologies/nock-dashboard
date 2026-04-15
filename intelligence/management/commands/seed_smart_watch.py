@@ -38,14 +38,6 @@ DEFAULT_RULES = [
         "message_template": "\U0001f9e0 {project} session at {value}% context \u2014 consider wrapping up",
         "cooldown_minutes": 30,
     },
-    {
-        "name": "Stale Brain Entries",
-        "condition_type": "brain_stale",
-        "threshold_minutes": 43200,
-        "severity": "info",
-        "message_template": "\U0001f4da {value} Brain entries haven't been updated in {threshold} days",
-        "cooldown_minutes": 10080,
-    },
 ]
 
 

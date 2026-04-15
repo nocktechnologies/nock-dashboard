@@ -305,7 +305,7 @@ class QueueManagementTests(TestCase):
     def test_ready_for_kevin(self):
         _make_prompt(slug="done", status="completed", pr_number=10)
         _make_prompt(slug="not-done", status="in_progress")
-        resp = self.client.get("/api/prompts/ready-for-kevin/", **_api_headers())
+        resp = self.client.get("/api/prompts/queued/", **_api_headers())
         data = resp.json()
         self.assertEqual(data["data"]["count"], 1)
         self.assertEqual(data["data"]["prompts"][0]["slug"], "done")

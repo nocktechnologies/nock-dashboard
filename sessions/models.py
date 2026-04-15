@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 
+from core.managers import TenantManager
+
 
 class AgentSession(models.Model):
     AGENT_CHOICES = [
@@ -60,6 +62,16 @@ class AgentSession(models.Model):
         related_name="generating_session",
     )
     notes = models.TextField(blank=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="agent_sessions",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-started_at"]
@@ -84,6 +96,16 @@ class SessionLog(models.Model):
     level = models.CharField(max_length=20, choices=LEVEL_CHOICES)
     message = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="session_logs",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-created_at"]
@@ -108,6 +130,16 @@ class TerminalHeartbeat(models.Model):
     )
     terminal_version = models.CharField(max_length=50, blank=True)
     received_at = models.DateTimeField(auto_now=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="terminal_heartbeats",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-received_at"]

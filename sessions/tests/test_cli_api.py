@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from pipeline.models import PullRequest, Repository
 from sessions.models import AgentSession
+from workspaces.models import Workspace, WorkspaceMembership
 
 _TEST_FERNET_KEYS = [os.environ.get("TEST_FERNET_KEY", "")]
 _TEST_WEBHOOK_SECRET = secrets.token_hex(16)
@@ -149,6 +150,11 @@ class SessionListPageTests(TestCase):
     def setUp(self) -> None:
         self.user = User.objects.create_user(username="testuser", password="testpass")
         self.client.force_login(self.user)
+        self.workspace = Workspace.objects.create(name="Test Workspace", owner=self.user)
+        WorkspaceMembership.objects.create(
+            workspace=self.workspace, user=self.user, role=WorkspaceMembership.ROLE_OWNER,
+            accepted_at=timezone.now(),
+        )
 
     def test_sessions_page_returns_200(self) -> None:
         resp = self.client.get("/sessions/")
@@ -156,7 +162,8 @@ class SessionListPageTests(TestCase):
 
     def test_sessions_page_shows_sessions(self) -> None:
         AgentSession.objects.create(
-            agent="claude_code", machine="mac", branch="feature/test", status="active"
+            agent="claude_code", machine="mac", branch="feature/test", status="active",
+            workspace=self.workspace,
         )
         resp = self.client.get("/sessions/")
         self.assertEqual(resp.status_code, 200)
@@ -164,8 +171,8 @@ class SessionListPageTests(TestCase):
         self.assertContains(resp, "feature/test")
 
     def test_sessions_page_filter_by_agent(self) -> None:
-        AgentSession.objects.create(agent="claude_code", status="active", branch="branch-cc")
-        AgentSession.objects.create(agent="copilot", status="active", branch="branch-cop")
+        AgentSession.objects.create(agent="claude_code", status="active", branch="branch-cc", workspace=self.workspace)
+        AgentSession.objects.create(agent="copilot", status="active", branch="branch-cop", workspace=self.workspace)
         resp = self.client.get("/sessions/?agent=claude_code")
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "branch-cc")

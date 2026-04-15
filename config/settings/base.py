@@ -69,9 +69,9 @@ LOCAL_APPS = [
     "vault.apps.VaultConfig",
     "crm.apps.CrmConfig",
     "intelligence.apps.IntelligenceConfig",
-    "brain.apps.BrainConfig",
     "teams.apps.TeamsConfig",
     "projects.apps.ProjectsConfig",
+    "workspaces.apps.WorkspacesConfig",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -84,6 +84,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "workspaces.middleware.WorkspaceMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # allauth 0.56+ requirement
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -196,11 +197,6 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=7, minute=0, day_of_week=1),  # Monday 7 AM MT
         "options": {"expires": 7200},
     },
-    "daily-maintenance": {
-        "task": "brain.tasks.daily_maintenance",
-        "schedule": crontab(hour=6, minute=0),  # 6 AM MT — Mara's morning note
-        "options": {"expires": 3600},
-    },
     "cleanup-stale-sessions": {
         "task": "sessions.tasks.cleanup_stale_sessions",
         "schedule": crontab(minute="*/30"),
@@ -248,7 +244,7 @@ ALLOWED_COMMAND_IPS = env.list("ALLOWED_COMMAND_IPS", default=[])
 # Web Push (VAPID)
 VAPID_PUBLIC_KEY = env("VAPID_PUBLIC_KEY", default="")
 VAPID_PRIVATE_KEY = env("VAPID_PRIVATE_KEY", default="")
-VAPID_CLAIMS_EMAIL = env("VAPID_CLAIMS_EMAIL", default="mailto:kevin@nocktechnologies.io")
+VAPID_CLAIMS_EMAIL = env("VAPID_CLAIMS_EMAIL", default="mailto:noreply@nocktechnologies.io")
 
 # Django REST Framework
 REST_FRAMEWORK = {

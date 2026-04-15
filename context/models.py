@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 
+from core.managers import TenantManager
+
 
 class ContextDocument(models.Model):
     DOC_TYPE_CHOICES = [
@@ -28,6 +30,16 @@ class ContextDocument(models.Model):
     is_stale = models.BooleanField(default=False)
     staleness_threshold_days = models.IntegerField(default=7)
     is_active = models.BooleanField(default=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="context_documents",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["repository", "file_path"]
@@ -69,6 +81,16 @@ class ContextSnapshot(models.Model):
     line_count = models.IntegerField(default=0)
     diff_summary = models.TextField(blank=True)
     captured_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="context_snapshots",
+    )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-captured_at", "-pk"]

@@ -18,7 +18,7 @@ def task_feed(request: HttpRequest) -> HttpResponse:
 
     # Common queryset
     incomplete_qs = (
-        AsanaTask.objects.filter(completed=False)
+        AsanaTask.tenant_objects.for_request(request).filter(completed=False)
         .select_related("project", "linked_pr__repository")
         .annotate(
             priority_rank=Case(
@@ -32,15 +32,16 @@ def task_feed(request: HttpRequest) -> HttpResponse:
     )
 
     # Completion stats per project
-    projects = AsanaProject.objects.filter(is_active=True).order_by("name")
+    projects = AsanaProject.tenant_objects.for_request(request).filter(is_active=True).order_by("name")
     stats = []
+    task_qs = AsanaTask.tenant_objects.for_request(request)
     for proj in projects:
-        total = AsanaTask.objects.filter(project=proj).count()
-        done = AsanaTask.objects.filter(project=proj, completed=True).count()
-        overdue = AsanaTask.objects.filter(
+        total = task_qs.filter(project=proj).count()
+        done = task_qs.filter(project=proj, completed=True).count()
+        overdue = task_qs.filter(
             project=proj, completed=False, due_on__lt=today, due_on__isnull=False,
         ).count()
-        last_activity = AsanaTask.objects.filter(
+        last_activity = task_qs.filter(
             project=proj, asana_updated_at__isnull=False,
         ).order_by("-asana_updated_at", "-pk").values_list(
             "asana_updated_at", flat=True
@@ -69,7 +70,7 @@ def task_feed(request: HttpRequest) -> HttpResponse:
 
         # Recent completions
         recent_completed = (
-            AsanaTask.objects.filter(completed=True)
+            task_qs.filter(completed=True)
             .select_related("project")
             .order_by("-completed_at", "-pk")[:10]
         )
@@ -112,11 +113,11 @@ def task_feed(request: HttpRequest) -> HttpResponse:
 
 @login_required
 def handoffs(request: HttpRequest) -> HttpResponse:
-    projects = AsanaProject.objects.filter(is_active=True).order_by("name")
+    projects = AsanaProject.tenant_objects.for_request(request).filter(is_active=True).order_by("name")
     handoff_tasks = []
     for proj in projects:
         task = (
-            AsanaTask.objects.filter(
+            AsanaTask.tenant_objects.for_request(request).filter(
                 project=proj,
                 name__icontains="handoff",
             )

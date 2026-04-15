@@ -191,46 +191,6 @@ class TaskDueTomorrowEvaluatorTest(TestCase):
         assert "Finish report" in alerts[0][0]
 
 
-class BrainStaleEvaluatorTest(TestCase):
-    def test_returns_alert_when_entries_stale(self):
-        from brain.models import MemoryEntry
-
-        entry = MemoryEntry.objects.create(
-            key="old-fact", value="Something old",
-            category="project", source="manual",
-        )
-        # Force updated_at to 60 days ago
-        MemoryEntry.objects.filter(pk=entry.pk).update(
-            updated_at=timezone.now() - timedelta(days=60),
-        )
-
-        rule = _make_rule(
-            condition_type="brain_stale",
-            threshold_minutes=43200,  # 30 days
-            message_template="{value} entries stale > {threshold} days",
-        )
-
-        from intelligence.smart_watch import check_brain_stale
-        alerts = check_brain_stale(rule)
-        assert len(alerts) == 1
-        assert "1 entries stale" in alerts[0][0]
-
-    def test_no_alert_when_entries_fresh(self):
-        from brain.models import MemoryEntry
-
-        MemoryEntry.objects.create(
-            key="fresh-fact", value="Something new",
-            category="project", source="manual",
-        )
-        rule = _make_rule(
-            condition_type="brain_stale",
-            threshold_minutes=43200,
-        )
-
-        from intelligence.smart_watch import check_brain_stale
-        assert len(check_brain_stale(rule)) == 0
-
-
 class ContextHighEvaluatorTest(TestCase):
     def test_returns_alert_for_high_context(self):
         from sessions.models import TerminalHeartbeat
@@ -349,7 +309,7 @@ class SmartWatchAPITest(TestCase):
     def test_rules_create(self):
         resp = self.client.post(
             "/intelligence/api/smart-watch/rules/create/",
-            data='{"name": "New Rule", "condition_type": "brain_stale"}',
+            data='{"name": "New Rule", "condition_type": "pr_waiting"}',
             content_type="application/json",
         )
         assert resp.status_code == 201
@@ -417,11 +377,11 @@ class SeedSmartWatchTest(TestCase):
         from django.core.management import call_command
 
         call_command("seed_smart_watch")
-        assert SmartWatchRule.objects.count() == 5
+        assert SmartWatchRule.objects.count() == 4
 
     def test_seed_is_idempotent(self):
         from django.core.management import call_command
 
         call_command("seed_smart_watch")
         call_command("seed_smart_watch")
-        assert SmartWatchRule.objects.count() == 5
+        assert SmartWatchRule.objects.count() == 4

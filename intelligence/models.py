@@ -149,7 +149,6 @@ class SmartWatchRule(models.Model):
         SESSION_LONG = "session_long", "Session Running Long"
         TASK_DUE_TOMORROW = "task_due_tomorrow", "Task Due Tomorrow"
         CONTEXT_HIGH = "context_high", "Context % High"
-        BRAIN_STALE = "brain_stale", "Brain Entry Stale"
         NO_ACTIVITY = "no_activity", "No Activity in Period"
         CUSTOM = "custom", "Custom"
 

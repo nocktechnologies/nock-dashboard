@@ -412,7 +412,7 @@ def _fresh_active_cutoff() -> "datetime.datetime":
 @login_required
 def session_list_page(request: HttpRequest) -> HttpResponse:
     """Full sessions list page with filters and active-now section."""
-    qs = AgentSession.objects.select_related("repository").order_by("-started_at")
+    qs = AgentSession.tenant_objects.for_request(request).select_related("repository").order_by("-started_at")
 
     # Filters
     agent_filter = request.GET.get("agent", "")
@@ -429,7 +429,7 @@ def session_list_page(request: HttpRequest) -> HttpResponse:
     # Active sessions: only those with activity within the last 2 hours
     fresh_cutoff = _fresh_active_cutoff()
     active_qs = (
-        AgentSession.objects.filter(status="active", last_activity__gte=fresh_cutoff)
+        AgentSession.tenant_objects.for_request(request).filter(status="active", last_activity__gte=fresh_cutoff)
         .select_related("repository")
         .order_by("-last_activity")
     )
