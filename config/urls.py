@@ -60,7 +60,7 @@ urlpatterns = [
     # Mobile API — Prompt Queue endpoints at /api/prompts/
     path("api/prompts/", teams_views.prompts_list_create, name="prompts-api"),
     path("api/prompts/queue/", teams_views.prompt_queue, name="prompts-queue-api"),
-    path("api/prompts/ready-for-kevin/", teams_views.prompts_ready_for_kevin, name="prompts-ready-api"),
+    path("api/prompts/queued/", teams_views.prompts_ready_for_kevin, name="prompts-queued-api"),
     path("api/prompts/stats/", teams_views.prompt_stats, name="prompts-stats-api"),
     path("api/prompts/<slug:slug>/", teams_views.prompt_detail, name="prompts-detail-api"),
     path("api/prompts/<slug:slug>/execute/", teams_views.prompt_execute, name="prompts-execute-api"),

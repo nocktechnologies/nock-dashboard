@@ -200,7 +200,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     "daily-maintenance": {
         "task": "brain.tasks.daily_maintenance",
-        "schedule": crontab(hour=6, minute=0),  # 6 AM MT — Mara's morning note
+        "schedule": crontab(hour=6, minute=0),  # 6 AM MT
         "options": {"expires": 3600},
     },
     "cleanup-stale-sessions": {
@@ -250,7 +250,7 @@ ALLOWED_COMMAND_IPS = env.list("ALLOWED_COMMAND_IPS", default=[])
 # Web Push (VAPID)
 VAPID_PUBLIC_KEY = env("VAPID_PUBLIC_KEY", default="")
 VAPID_PRIVATE_KEY = env("VAPID_PRIVATE_KEY", default="")
-VAPID_CLAIMS_EMAIL = env("VAPID_CLAIMS_EMAIL", default="mailto:kevin@nocktechnologies.io")
+VAPID_CLAIMS_EMAIL = env("VAPID_CLAIMS_EMAIL", default="mailto:noreply@nocktechnologies.io")
 
 # Django REST Framework
 REST_FRAMEWORK = {
