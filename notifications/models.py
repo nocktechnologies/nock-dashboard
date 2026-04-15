@@ -1,5 +1,7 @@
 from django.db import models
 
+from core.managers import TenantManager
+
 
 class NotificationChannel(models.Model):
     CHANNEL_TYPE_CHOICES = [
@@ -20,6 +22,9 @@ class NotificationChannel(models.Model):
         on_delete=models.SET_NULL,
         related_name="notification_channels",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["name"]
@@ -61,6 +66,9 @@ class NotificationRule(models.Model):
         related_name="notification_rules",
     )
 
+    objects = models.Manager()
+    tenant_objects = TenantManager()
+
     class Meta:
         ordering = ["trigger_event", "name"]
 
@@ -93,6 +101,9 @@ class NotificationLog(models.Model):
         on_delete=models.SET_NULL,
         related_name="notification_logs",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-sent_at"]

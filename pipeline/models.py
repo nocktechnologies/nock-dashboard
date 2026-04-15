@@ -4,6 +4,8 @@ from django.db import models
 from django.utils import timezone
 from fernet_fields import EncryptedCharField
 
+from core.managers import TenantManager
+
 # Maps GitHub login (lowercased) → reviewer type for ReviewAlert
 REVIEWER_MAP: dict[str, str] = {
     "coderabbitai[bot]": "coderabbit",
@@ -41,6 +43,9 @@ class Repository(models.Model):
         on_delete=models.SET_NULL,
         related_name="repositories",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         verbose_name_plural = "repositories"
@@ -114,6 +119,9 @@ class PullRequest(models.Model):
         related_name="pull_requests",
     )
 
+    objects = models.Manager()
+    tenant_objects = TenantManager()
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -146,6 +154,9 @@ class PREvent(models.Model):
         on_delete=models.SET_NULL,
         related_name="pr_events",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-created_at"]
@@ -184,6 +195,9 @@ class Branch(models.Model):
         related_name="branches",
     )
 
+    objects = models.Manager()
+    tenant_objects = TenantManager()
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -216,6 +230,9 @@ class BranchEvent(models.Model):
         on_delete=models.SET_NULL,
         related_name="branch_events",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         constraints = [
@@ -264,6 +281,9 @@ class ReviewAlert(models.Model):
         on_delete=models.SET_NULL,
         related_name="review_alerts",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-created_at", "-pk"]
@@ -374,6 +394,9 @@ class PipelineEvent(models.Model):
         on_delete=models.SET_NULL,
         related_name="pipeline_events",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-created_at"]

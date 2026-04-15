@@ -2,6 +2,8 @@ from django.db import models
 from django.db.models import Count, Q, QuerySet
 from django.utils.text import slugify
 
+from core.managers import TenantManager
+
 
 class AgentTeam(models.Model):
     STATUS_CHOICES = [
@@ -23,6 +25,9 @@ class AgentTeam(models.Model):
         on_delete=models.SET_NULL,
         related_name="agent_teams",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-updated_at", "-id"]
@@ -70,6 +75,9 @@ class TeamMember(models.Model):
         on_delete=models.SET_NULL,
         related_name="team_members",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         unique_together = ["team", "agent_name"]
@@ -131,6 +139,9 @@ class TeamTask(models.Model):
         related_name="team_tasks",
     )
 
+    objects = models.Manager()
+    tenant_objects = TenantManager()
+
     class Meta:
         ordering = ["-priority", "created_at", "id"]
 
@@ -181,6 +192,9 @@ class TeamEvent(models.Model):
         on_delete=models.SET_NULL,
         related_name="team_events",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-created_at", "-id"]
@@ -247,6 +261,9 @@ class PromptFile(models.Model):
         related_name="prompt_files",
     )
 
+    objects = models.Manager()
+    tenant_objects = TenantManager()
+
     class Meta:
         ordering = ["-priority", "created_at", "id"]
 
@@ -303,6 +320,9 @@ class PromptExecution(models.Model):
         on_delete=models.SET_NULL,
         related_name="prompt_executions",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-started_at", "id"]

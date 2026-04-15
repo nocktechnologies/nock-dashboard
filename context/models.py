@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 
+from core.managers import TenantManager
+
 
 class ContextDocument(models.Model):
     DOC_TYPE_CHOICES = [
@@ -35,6 +37,9 @@ class ContextDocument(models.Model):
         on_delete=models.SET_NULL,
         related_name="context_documents",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["repository", "file_path"]
@@ -83,6 +88,9 @@ class ContextSnapshot(models.Model):
         on_delete=models.SET_NULL,
         related_name="context_snapshots",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-captured_at", "-pk"]

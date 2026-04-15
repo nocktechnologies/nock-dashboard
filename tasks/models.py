@@ -1,6 +1,8 @@
 from django.db import models
 from django.utils import timezone
 
+from core.managers import TenantManager
+
 
 class AsanaProject(models.Model):
     asana_gid = models.CharField(max_length=50, unique=True)
@@ -16,6 +18,9 @@ class AsanaProject(models.Model):
         on_delete=models.SET_NULL,
         related_name="asana_projects",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["name"]
@@ -49,6 +54,9 @@ class AsanaSection(models.Model):
         on_delete=models.SET_NULL,
         related_name="asana_sections",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["project__name", "order", "name"]
@@ -96,6 +104,9 @@ class AsanaTask(models.Model):
         on_delete=models.SET_NULL,
         related_name="asana_tasks",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         # Default ordering is lexicographic on priority; views override this

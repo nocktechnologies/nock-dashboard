@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 
+from core.managers import TenantManager
+
 
 class AgentSession(models.Model):
     AGENT_CHOICES = [
@@ -68,6 +70,9 @@ class AgentSession(models.Model):
         related_name="agent_sessions",
     )
 
+    objects = models.Manager()
+    tenant_objects = TenantManager()
+
     class Meta:
         ordering = ["-started_at"]
 
@@ -99,6 +104,9 @@ class SessionLog(models.Model):
         related_name="session_logs",
     )
 
+    objects = models.Manager()
+    tenant_objects = TenantManager()
+
     class Meta:
         ordering = ["-created_at"]
 
@@ -129,6 +137,9 @@ class TerminalHeartbeat(models.Model):
         on_delete=models.SET_NULL,
         related_name="terminal_heartbeats",
     )
+
+    objects = models.Manager()
+    tenant_objects = TenantManager()
 
     class Meta:
         ordering = ["-received_at"]
