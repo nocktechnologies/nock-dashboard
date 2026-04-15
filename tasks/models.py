@@ -9,6 +9,13 @@ class AsanaProject(models.Model):
     is_active = models.BooleanField(default=True)
     last_synced = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="asana_projects",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -35,6 +42,13 @@ class AsanaSection(models.Model):
     order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="asana_sections",
+    )
 
     class Meta:
         ordering = ["project__name", "order", "name"]
@@ -74,6 +88,13 @@ class AsanaTask(models.Model):
         blank=True,
         db_index=True,
         help_text="Soft-delete timestamp set when task is deleted via the write-back API.",
+    )
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="asana_tasks",
     )
 
     class Meta:

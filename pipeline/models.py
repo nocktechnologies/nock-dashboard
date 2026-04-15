@@ -34,6 +34,13 @@ class Repository(models.Model):
     webhook_secret = EncryptedCharField(max_length=255)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="repositories",
+    )
 
     class Meta:
         verbose_name_plural = "repositories"
@@ -99,6 +106,13 @@ class PullRequest(models.Model):
     closed_at = models.DateTimeField(null=True, blank=True)
     last_updated = models.DateTimeField(auto_now=True)
     generating_agent = models.CharField(max_length=100, blank=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pull_requests",
+    )
 
     class Meta:
         constraints = [
@@ -125,6 +139,13 @@ class PREvent(models.Model):
     # Dedicated field for DB-level delivery idempotency (unique on non-empty values)
     delivery_id = models.CharField(max_length=100, blank=True, default="", db_index=True)
     created_at = models.DateTimeField(default=timezone.now)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pr_events",
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -155,6 +176,13 @@ class Branch(models.Model):
     last_commit_message = models.TextField(blank=True)
     last_commit_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="branches",
+    )
 
     class Meta:
         constraints = [
@@ -181,6 +209,13 @@ class BranchEvent(models.Model):
     ref = models.CharField(max_length=255)
     deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="branch_events",
+    )
 
     class Meta:
         constraints = [
@@ -222,6 +257,13 @@ class ReviewAlert(models.Model):
     body_preview = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False, db_index=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="review_alerts",
+    )
 
     class Meta:
         ordering = ["-created_at", "-pk"]
@@ -324,6 +366,13 @@ class PipelineEvent(models.Model):
     )
     test_count = models.IntegerField(
         null=True, blank=True, help_text="Number of tests after this step",
+    )
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="pipeline_events",
     )
 
     class Meta:

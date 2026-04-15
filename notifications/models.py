@@ -13,6 +13,13 @@ class NotificationChannel(models.Model):
     webhook_url = models.URLField()
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="notification_channels",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -46,6 +53,13 @@ class NotificationRule(models.Model):
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="notification_rules",
+    )
 
     class Meta:
         ordering = ["trigger_event", "name"]
@@ -72,6 +86,13 @@ class NotificationLog(models.Model):
     success = models.BooleanField(default=True)
     error_message = models.TextField(blank=True)
     sent_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="notification_logs",
+    )
 
     class Meta:
         ordering = ["-sent_at"]

@@ -28,6 +28,13 @@ class ContextDocument(models.Model):
     is_stale = models.BooleanField(default=False)
     staleness_threshold_days = models.IntegerField(default=7)
     is_active = models.BooleanField(default=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="context_documents",
+    )
 
     class Meta:
         ordering = ["repository", "file_path"]
@@ -69,6 +76,13 @@ class ContextSnapshot(models.Model):
     line_count = models.IntegerField(default=0)
     diff_summary = models.TextField(blank=True)
     captured_at = models.DateTimeField(auto_now_add=True)
+    workspace = models.ForeignKey(
+        "workspaces.Workspace",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="context_snapshots",
+    )
 
     class Meta:
         ordering = ["-captured_at", "-pk"]
