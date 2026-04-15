@@ -69,7 +69,6 @@ LOCAL_APPS = [
     "vault.apps.VaultConfig",
     "crm.apps.CrmConfig",
     "intelligence.apps.IntelligenceConfig",
-    "brain.apps.BrainConfig",
     "teams.apps.TeamsConfig",
     "projects.apps.ProjectsConfig",
     "workspaces.apps.WorkspacesConfig",
@@ -197,11 +196,6 @@ CELERY_BEAT_SCHEDULE = {
         "task": "intelligence.tasks.generate_weekly_memo",
         "schedule": crontab(hour=7, minute=0, day_of_week=1),  # Monday 7 AM MT
         "options": {"expires": 7200},
-    },
-    "daily-maintenance": {
-        "task": "brain.tasks.daily_maintenance",
-        "schedule": crontab(hour=6, minute=0),  # 6 AM MT
-        "options": {"expires": 3600},
     },
     "cleanup-stale-sessions": {
         "task": "sessions.tasks.cleanup_stale_sessions",

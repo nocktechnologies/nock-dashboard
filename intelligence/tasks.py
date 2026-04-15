@@ -133,7 +133,6 @@ def generate_weekly_memo() -> dict:
 
 def _gather_weekly_data(week_start: date, week_end: date) -> str:
     """Gather all data for the weekly memo."""
-    from brain.models import MemoryEntry
     from crm.models import Deal
     from pipeline.models import PullRequest
     from sessions.models import AgentSession
@@ -144,17 +143,6 @@ def _gather_weekly_data(week_start: date, week_end: date) -> str:
 
     today = week_end
     lines = [f"# Weekly Data Report: {week_start} to {week_end}\n"]
-
-    # Brain — recent continuity, project, and decision entries
-    brain_entries = MemoryEntry.objects.filter(
-        category__in=["continuity", "project", "decision"],
-        updated_at__date__gte=week_start,
-    ).order_by("-updated_at")[:10]
-    if brain_entries:
-        lines.append("## Brain Context (recent entries)")
-        for entry in brain_entries:
-            lines.append(f"- [{entry.category}] {entry.key}: {entry.value[:200]}")
-        lines.append("")
 
     # PRs
     merged_prs = (

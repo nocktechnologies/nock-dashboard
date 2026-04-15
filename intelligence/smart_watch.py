@@ -149,34 +149,9 @@ def check_context_high(rule: SmartWatchRule) -> list[tuple[str, dict]]:
     return alerts
 
 
-def check_brain_stale(rule: SmartWatchRule) -> list[tuple[str, dict]]:
-    """Brain entries not updated within threshold (converted to days)."""
-    from brain.models import MemoryEntry
-
-    threshold_days = max(rule.threshold_minutes // (60 * 24), 1)
-    cutoff = timezone.now() - timedelta(days=threshold_days)
-
-    stale_count = MemoryEntry.objects.filter(updated_at__lt=cutoff).count()
-
-    if stale_count > 0:
-        msg = rule.message_template.format(
-            name=rule.name,
-            value=stale_count,
-            threshold=threshold_days,
-            pr_number="",
-            repo="",
-            branch="",
-            project="",
-            task_name="",
-        )
-        return [(msg, {"stale_count": stale_count})]
-    return []
-
-
 EVALUATORS: dict[str, Callable[..., list[tuple[str, dict]]]] = {
     "pr_waiting": check_pr_waiting,
     "session_long": check_session_long,
     "task_due_tomorrow": check_task_due_tomorrow,
     "context_high": check_context_high,
-    "brain_stale": check_brain_stale,
 }

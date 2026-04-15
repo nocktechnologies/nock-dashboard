@@ -4,8 +4,6 @@ from django.contrib import admin
 from django.urls import include, path
 
 from accounts import views as accounts_views
-from brain import views_handoffs, views_research
-from brain import views as brain_views
 from crm.views import contacts_api, deals_api
 from intelligence import views as intelligence_views
 from remote import views as remote_views
@@ -44,7 +42,6 @@ urlpatterns = [
     path("vault/", include("vault.urls", namespace="vault")),
     path("crm/", include("crm.urls", namespace="crm")),
     path("intelligence/", include("intelligence.urls", namespace="intelligence")),
-    path("brain/", include("brain.urls", namespace="brain")),
     path("", include("teams.urls", namespace="teams")),
     # Mobile API — Teams endpoints at /api/teams/
     path("api/teams/", teams_views.teams_list_create, name="teams-api"),
@@ -90,26 +87,6 @@ urlpatterns = [
     path("api/remote/conversations/", remote_views.conversation_list_create, name="remote-conversations-api"),
     path("api/remote/conversations/<int:conversation_id>/", remote_views.conversation_detail, name="remote-conversation-detail-api"),
     path("api/remote/conversations/<int:conversation_id>/send/", remote_views.conversation_send, name="remote-conversation-send-api"),
-    # Mobile API — Brain endpoints at /api/brain/
-    path("api/brain/entries/", brain_views.entries_list_create, name="brain-entries-api"),
-    path("api/brain/entries/<int:entry_id>/", brain_views.entry_detail, name="brain-entry-detail-api"),
-    path("api/brain/categories/", brain_views.categories_list, name="brain-categories-api"),
-    path("api/brain/brief/", brain_views.generate_brief, name="brain-brief-api"),
-    path("api/brain/stats/", brain_views.stats, name="brain-stats-api"),
-    path("api/brain/consolidate/", brain_views.consolidate, name="brain-consolidate-api"),
-    path("api/brain/consolidation-history/", brain_views.consolidation_history, name="brain-consolidation-history-api"),
-    path("api/brain/morning-note/test/", brain_views.send_test_morning_note, name="brain-morning-note-test-api"),
-    # Session Handoffs API — operational state per context
-    path("api/brain/handoffs/", views_handoffs.handoffs_list, name="brain-handoffs-api"),
-    path("api/brain/handoffs/latest/", views_handoffs.handoffs_latest, name="brain-handoffs-latest-api"),
-    path("api/brain/handoffs/<str:context>/", views_handoffs.handoff_detail, name="brain-handoff-detail-api"),
-    path("api/brain/handoffs/<str:context>/history/", views_handoffs.handoff_history, name="brain-handoff-history-api"),
-    # Research Library API — semantic search over the user's knowledge corpus
-    path("api/brain/research/search/", views_research.research_search, name="brain-research-search-api"),
-    path("api/brain/research/documents/", views_research.research_documents_list, name="brain-research-docs-api"),
-    path("api/brain/research/documents/<slug:slug>/", views_research.research_document_detail, name="brain-research-doc-detail-api"),
-    path("api/brain/research/topics/", views_research.research_topics, name="brain-research-topics-api"),
-    path("api/brain/research/stats/", views_research.research_stats, name="brain-research-stats-api"),
     # Mobile API — Terminal Bridge endpoints at /api/terminal/
     path("api/terminal/heartbeat/", sessions_views.terminal_heartbeat, name="terminal-heartbeat-api"),
     path("api/terminal/status/", sessions_views.terminal_status, name="terminal-status-api"),
