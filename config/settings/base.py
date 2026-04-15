@@ -72,6 +72,7 @@ LOCAL_APPS = [
     "teams.apps.TeamsConfig",
     "projects.apps.ProjectsConfig",
     "workspaces.apps.WorkspacesConfig",
+    "billing.apps.BillingConfig",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -85,6 +86,8 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "workspaces.middleware.WorkspaceMiddleware",
+    # SubscriptionMiddleware MUST come after WorkspaceMiddleware — it reads request.workspace.
+    "billing.middleware.SubscriptionMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # allauth 0.56+ requirement
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -224,6 +227,13 @@ DISCORD_WEBHOOK_URL = env("DISCORD_WEBHOOK_URL", default="")
 
 # NockCC API key for session tracking endpoints
 NOCKCC_API_KEY = env("NOCKCC_API_KEY", default="")
+
+# Stripe billing (Solo $49/mo, Fleet $97/mo — Decision #18)
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
+STRIPE_PUBLISHABLE_KEY = env("STRIPE_PUBLISHABLE_KEY", default="")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
+STRIPE_SOLO_PRICE_ID = env("STRIPE_SOLO_PRICE_ID", default="")
+STRIPE_FLEET_PRICE_ID = env("STRIPE_FLEET_PRICE_ID", default="")
 
 # Telegram notifications (server-side, always-on via Railway)
 TELEGRAM_BOT_TOKEN = env("TELEGRAM_BOT_TOKEN", default="")
