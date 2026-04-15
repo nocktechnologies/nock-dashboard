@@ -42,6 +42,7 @@ urlpatterns = [
     path("vault/", include("vault.urls", namespace="vault")),
     path("crm/", include("crm.urls", namespace="crm")),
     path("intelligence/", include("intelligence.urls", namespace="intelligence")),
+    path("billing/", include("billing.urls", namespace="billing")),
     path("", include("teams.urls", namespace="teams")),
     # Mobile API — Teams endpoints at /api/teams/
     path("api/teams/", teams_views.teams_list_create, name="teams-api"),
