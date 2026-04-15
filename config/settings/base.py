@@ -72,6 +72,7 @@ LOCAL_APPS = [
     "brain.apps.BrainConfig",
     "teams.apps.TeamsConfig",
     "projects.apps.ProjectsConfig",
+    "workspaces.apps.WorkspacesConfig",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -84,6 +85,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "workspaces.middleware.WorkspaceMiddleware",
     "allauth.account.middleware.AccountMiddleware",  # allauth 0.56+ requirement
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
