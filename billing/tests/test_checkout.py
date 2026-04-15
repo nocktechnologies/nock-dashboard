@@ -106,3 +106,13 @@ class TestCheckoutSuccessCancel:
         _login(self.client, user)
         resp = self.client.get(CANCEL_URL)
         assert resp.status_code == 200
+
+    def test_anonymous_success_redirects_to_login(self):
+        resp = self.client.get(SUCCESS_URL)
+        assert resp.status_code == 302
+        assert "/accounts/" in resp["Location"]
+
+    def test_anonymous_cancel_redirects_to_login(self):
+        resp = self.client.get(CANCEL_URL)
+        assert resp.status_code == 302
+        assert "/accounts/" in resp["Location"]

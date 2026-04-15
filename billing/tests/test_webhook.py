@@ -127,6 +127,22 @@ class TestStripeWebhook:
         assert resp.status_code == 200
 
     @patch("billing.views.stripe.Webhook.construct_event")
+    def test_checkout_completed_malformed_workspace_id_returns_400(
+        self, mock_construct, db
+    ):
+        """Malformed workspace_id in metadata must return 400, not 500."""
+        session_obj = {
+            "id": "cs_test_malformed",
+            "subscription": "sub_malformed",
+            "customer": "cus_malformed",
+            "metadata": {"workspace_id": "not-an-integer", "tier": "solo"},
+        }
+        mock_construct.return_value = _make_event("checkout.session.completed", session_obj)
+
+        resp = self._post({"type": "checkout.session.completed"})
+        assert resp.status_code == 400
+
+    @patch("billing.views.stripe.Webhook.construct_event")
     def test_checkout_completed_missing_tier_creates_no_subscription(
         self, mock_construct, workspace, plan_solo, db
     ):

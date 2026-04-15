@@ -74,11 +74,13 @@ def checkout_create(request: HttpRequest) -> HttpResponse:
     return redirect(session.url)
 
 
+@login_required
 def checkout_success(request: HttpRequest) -> HttpResponse:
     """GET /billing/success/ — post-checkout success landing page."""
     return render(request, "billing/success.html")
 
 
+@login_required
 def checkout_cancel(request: HttpRequest) -> HttpResponse:
     """GET /billing/cancel/ — post-checkout cancel landing page."""
     return render(request, "billing/cancel.html")
@@ -116,16 +118,20 @@ def stripe_webhook(request: HttpRequest) -> HttpResponse:
     event_type = event.type
     obj = event.data.object
 
-    if event_type == "checkout.session.completed":
-        _handle_checkout_completed(obj)
-    elif event_type == "invoice.paid":
-        _handle_invoice_paid(obj)
-    elif event_type == "invoice.payment_failed":
-        _handle_invoice_payment_failed(obj)
-    elif event_type == "customer.subscription.deleted":
-        _handle_subscription_deleted(obj)
-    else:
-        logger.debug("Unhandled Stripe event type: %s", event_type)
+    try:
+        if event_type == "checkout.session.completed":
+            _handle_checkout_completed(obj)
+        elif event_type == "invoice.paid":
+            _handle_invoice_paid(obj)
+        elif event_type == "invoice.payment_failed":
+            _handle_invoice_payment_failed(obj)
+        elif event_type == "customer.subscription.deleted":
+            _handle_subscription_deleted(obj)
+        else:
+            logger.debug("Unhandled Stripe event type: %s", event_type)
+    except ValueError as exc:
+        logger.warning("Webhook handler rejected event %s: %s", event_type, exc)
+        return HttpResponse(status=400)
 
     return HttpResponse(status=200)
 
@@ -141,13 +147,20 @@ _VALID_TIERS = {"solo", "fleet"}
 def _handle_checkout_completed(session) -> None:
     """checkout.session.completed — create or update the workspace Subscription."""
     metadata = session.get("metadata") or {}
-    workspace_id = metadata.get("workspace_id")
     tier = metadata.get("tier", "")
     stripe_sub_id = session.get("subscription")
     stripe_customer_id = session.get("customer")
 
-    if not workspace_id or not stripe_sub_id:
-        logger.warning("checkout.session.completed missing workspace_id or subscription")
+    try:
+        workspace_id = int(metadata.get("workspace_id") or "")
+    except (ValueError, TypeError) as exc:
+        logger.warning(
+            "checkout.session.completed: malformed workspace_id in metadata: %s", exc
+        )
+        raise ValueError("malformed workspace_id") from exc
+
+    if not stripe_sub_id:
+        logger.warning("checkout.session.completed missing subscription")
         return
 
     if tier not in _VALID_TIERS:
