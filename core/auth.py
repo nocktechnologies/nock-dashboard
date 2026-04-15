@@ -30,17 +30,17 @@ def require_api_key(view_func):  # type: ignore[no-untyped-def]
             return view_func(request, *args, **kwargs)
 
         # Fall back to API key auth
-        key = _api_key()
-        if not key:
-            return JsonResponse(
-                {"success": False, "message": "API key not configured on server", "data": None},
-                status=500,
-            )
         provided = request.headers.get("X-API-Key", "")
         if not provided:
             return JsonResponse(
                 {"success": False, "message": "Authentication required", "data": None},
                 status=401,
+            )
+        key = _api_key()
+        if not key:
+            return JsonResponse(
+                {"success": False, "message": "API key not configured on server", "data": None},
+                status=500,
             )
         if not secrets.compare_digest(provided, key):
             return JsonResponse(
