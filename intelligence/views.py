@@ -11,7 +11,7 @@ from django.http import (
     HttpResponse,
     JsonResponse,
 )
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -684,6 +684,17 @@ def alerts_page(request: HttpRequest) -> HttpResponse:
         "categories": PredictiveAlert.Category.choices,
         "severities": PredictiveAlert.Severity.choices,
     })
+
+
+@require_POST
+@login_required
+def resolve_alert(request: HttpRequest, pk: int) -> HttpResponse:
+    """Mark an alert as resolved."""
+    alert = get_object_or_404(PredictiveAlert, pk=pk, is_resolved=False)
+    alert.is_resolved = True
+    alert.resolved_at = timezone.now()
+    alert.save(update_fields=["is_resolved", "resolved_at"])
+    return redirect("intelligence:alerts")
 
 
 # ──────────────── Smart Watch ────────────────

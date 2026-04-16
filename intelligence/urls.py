@@ -9,6 +9,7 @@ urlpatterns = [
     path("executive/", views.executive_dashboard, name="executive"),
     path("advisor/", views.advisor_page, name="advisor"),
     path("alerts/", views.alerts_page, name="alerts"),
+    path("alerts/<int:pk>/resolve/", views.resolve_alert, name="resolve-alert"),
 
     # APIs
     path("api/alerts/", views.alerts_api, name="alerts-api"),

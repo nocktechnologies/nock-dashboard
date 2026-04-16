@@ -1,5 +1,6 @@
+import calendar as cal_module
 import logging
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
@@ -478,4 +479,81 @@ def pm_project_detail(request: HttpRequest, slug: str) -> HttpResponse:
 
     return render(request, "dashboard/pm_project_detail.html", {
         "project": project,
+    })
+
+
+@require_GET
+@login_required
+def calendar_view(request: HttpRequest) -> HttpResponse:
+    """Calendar view — tasks by due date, sprint info, milestones."""
+    from tasks.models import AsanaTask  # noqa: PLC0415
+
+    today = timezone.localdate()
+    try:
+        year = int(request.GET.get("year", today.year))
+        month = int(request.GET.get("month", today.month))
+        if not (1 <= month <= 12) or not (2020 <= year <= 2030):
+            raise ValueError
+    except (ValueError, TypeError):
+        year, month = today.year, today.month
+
+    # Month boundaries
+    first_day = date(year, month, 1)
+    if month == 12:
+        last_day = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        last_day = date(year, month + 1, 1) - timedelta(days=1)
+
+    # Prev / next month navigation
+    if month == 1:
+        prev_year, prev_month = year - 1, 12
+    else:
+        prev_year, prev_month = year, month - 1
+    if month == 12:
+        next_year, next_month = year + 1, 1
+    else:
+        next_year, next_month = year, month + 1
+
+    # Tasks with due dates in this month, grouped by day
+    tasks_qs = (
+        AsanaTask.objects.filter(due_on__gte=first_day, due_on__lte=last_day)
+        .order_by("due_on", "name")
+        .select_related("project")
+    )
+    tasks_by_day: dict[int, list] = {}
+    for task in tasks_qs:
+        tasks_by_day.setdefault(task.due_on.day, []).append(task)
+
+    # Build week grid (0 = padding day outside this month)
+    weeks = []
+    for week in cal_module.monthcalendar(year, month):
+        week_data = []
+        for day_num in week:
+            if day_num == 0:
+                week_data.append({"day": 0, "tasks": [], "is_today": False})
+            else:
+                is_today = (
+                    year == today.year
+                    and month == today.month
+                    and day_num == today.day
+                )
+                week_data.append({
+                    "day": day_num,
+                    "tasks": tasks_by_day.get(day_num, []),
+                    "is_today": is_today,
+                })
+        weeks.append(week_data)
+
+    return render(request, "dashboard/calendar.html", {
+        "year": year,
+        "month": month,
+        "month_name": cal_module.month_name[month],
+        "weeks": weeks,
+        "prev_year": prev_year,
+        "prev_month": prev_month,
+        "next_year": next_year,
+        "next_month": next_month,
+        "today": today,
+        "tasks_count": tasks_qs.count(),
+        "day_names": list(cal_module.day_abbr),
     })
