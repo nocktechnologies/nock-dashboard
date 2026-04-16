@@ -128,13 +128,18 @@
                     <i data-lucide="archive" class="ncc-sidebar-item-icon"></i>
                     <span class="ncc-sidebar-item-label">Vault</span>
                 </a>
+                <a href="/calendar/" class="ncc-sidebar-item {% if '/calendar/' in request.path %}active{% endif %}" title="Calendar">
+                    <i data-lucide="calendar" class="ncc-sidebar-item-icon"></i>
+                    <span class="ncc-sidebar-item-label">Calendar</span>
+                </a>
 
                 <!-- System -->
                 <div class="ncc-sidebar-section-label">System</div>
-                <a href="/teams/" class="ncc-sidebar-item {% if '/teams/' in request.path %}active{% endif %}" title="Teams">
+                {# P114: Agent Teams hidden from nav — option B, ship properly later #}
+                {# <a href="/teams/" class="ncc-sidebar-item {% if '/teams/' in request.path %}active{% endif %}" title="Teams">
                     <i data-lucide="bot" class="ncc-sidebar-item-icon"></i>
                     <span class="ncc-sidebar-item-label">Teams</span>
-                </a>
+                </a> #}
                 <a href="/prompts/" class="ncc-sidebar-item {% if '/prompts/' in request.path %}active{% endif %}" title="Prompts">
                     <i data-lucide="message-square" class="ncc-sidebar-item-icon"></i>
                     <span class="ncc-sidebar-item-label">Prompts</span>

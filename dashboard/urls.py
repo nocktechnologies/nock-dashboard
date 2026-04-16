@@ -15,4 +15,5 @@ urlpatterns = [
     path("pm/", views.pm_dashboard, name="pm"),
     path("pm/tasks/", views.pm_tasks_all, name="pm-tasks-all"),
     path("pm/<slug:slug>/", views.pm_project_detail, name="pm-project-detail"),
+    path("calendar/", views.calendar_view, name="calendar"),
 ]

@@ -60,7 +60,25 @@
                         <span class="ncc-badge ncc-badge-draft">{{ alert.category }}</span>
                     </div>
                     <p class="text-xs text-secondary" style="margin-top: var(--space-1);">{{ alert.message }}</p>
-                    <p class="text-muted" style="font-size: 10px; margin-top: var(--space-1);">{{ alert.created_at|timesince }} ago</p>
+                    <div style="display: flex; align-items: center; gap: var(--space-3); margin-top: var(--space-2);">
+                        <p class="text-muted" style="font-size: 10px;">{{ alert.created_at|timesince }} ago</p>
+                        <!-- Category action link -->
+                        {% if alert.category == 'pipeline' %}<a href="/pipeline/" class="text-xs" style="text-decoration: none; color: var(--color-accent);">View Pipeline &rarr;</a>
+                        {% elif alert.category == 'spend' %}<a href="/spend/" class="text-xs" style="text-decoration: none; color: var(--color-accent);">View Spend &rarr;</a>
+                        {% elif alert.category == 'tasks' %}<a href="/pm/tasks/" class="text-xs" style="text-decoration: none; color: var(--color-accent);">View Tasks &rarr;</a>
+                        {% elif alert.category == 'context' %}<a href="/context/" class="text-xs" style="text-decoration: none; color: var(--color-accent);">View Context &rarr;</a>
+                        {% elif alert.category == 'subscriptions' %}<a href="/billing/" class="text-xs" style="text-decoration: none; color: var(--color-accent);">View Billing &rarr;</a>
+                        {% elif alert.category == 'velocity' %}<a href="/sessions/" class="text-xs" style="text-decoration: none; color: var(--color-accent);">View Sessions &rarr;</a>
+                        {% elif alert.category == 'revenue' %}<a href="/crm/" class="text-xs" style="text-decoration: none; color: var(--color-accent);">View CRM &rarr;</a>
+                        {% endif %}
+                        <!-- Resolve button -->
+                        <form method="post" action="{% url 'intelligence:resolve-alert' alert.pk %}" style="display: inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="ncc-btn ncc-btn-sm ncc-btn-ghost" style="font-size: 10px; padding: 2px 8px; color: var(--color-success);">
+                                Resolve &#x2713;
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
             {% endfor %}
