@@ -1,19 +1,21 @@
 import calendar as cal_module
+import json
 import logging
+import time
 from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
 from django.db.models import Case, IntegerField, Q, Sum, Value, When
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
 from core.auth import require_api_key
-from pipeline.models import PREvent, PullRequest, Repository
+from pipeline.models import PipelineEvent, PREvent, PullRequest, Repository, ReviewAlert
 from sessions.models import AgentSession, TerminalHeartbeat
 from spend.models import Revenue, UsagePeriod
 
@@ -557,3 +559,148 @@ def calendar_view(request: HttpRequest) -> HttpResponse:
         "tasks_count": tasks_qs.count(),
         "day_names": list(cal_module.day_abbr),
     })
+
+
+# ---------------------------------------------------------------------------
+# Task 135 — Health beacon (/api/live/health/ SSE)
+# ---------------------------------------------------------------------------
+
+def _read_hollis_sweep() -> tuple[str, bool, list]:
+    """Read Hollis last-sweep.json. Returns (sweep_status, is_stale, anomalies)."""
+    import os
+    from datetime import datetime
+    from datetime import timezone as dt_timezone
+
+    sweep_path = os.path.expanduser("~/.claude-remote/default/state/hollis.last-sweep.json")
+    try:
+        with open(sweep_path) as f:
+            data = json.load(f)
+        sweep_status = data.get("sweep_status", "CLEAN")
+        anomalies = data.get("anomalies") or []
+        ts_str = data.get("timestamp", "")
+        is_stale = True
+        if ts_str:
+            try:
+                ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                is_stale = (datetime.now(dt_timezone.utc) - ts).total_seconds() > 600
+            except ValueError:
+                pass
+        return sweep_status, is_stale, anomalies
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return "CLEAN", True, []
+
+
+def _compute_health_status(
+    stale_sessions: list,
+    stale_heartbeats: list,
+    failed_ci: list,
+    idle_prs: list,
+    errors: list,
+    review_alerts: list,
+    sweep_status: str = "CLEAN",
+    sweep_stale: bool = False,
+    sweep_anomalies: list | None = None,
+) -> tuple[str, int]:
+    """Return (status_label, incident_count) for the health beacon."""
+    sweep_anomalies = sweep_anomalies or []
+    sweep_critical = sweep_status == "INCIDENT" and not sweep_stale
+    sweep_degraded = sweep_status == "DRIFT_DETECTED" and not sweep_stale
+    sweep_watch = sweep_status == "WATCH" or sweep_stale
+    if sweep_stale:
+        sweep_count = 1
+    elif sweep_status == "CLEAN":
+        sweep_count = 0
+    else:
+        sweep_count = max(1, len(sweep_anomalies))
+
+    total = (
+        len(stale_sessions)
+        + len(stale_heartbeats)
+        + len(failed_ci)
+        + len(idle_prs)
+        + len(errors)
+        + len(review_alerts)
+        + sweep_count
+    )
+    if stale_sessions or sweep_critical or total >= 5:
+        return "CRITICAL", total
+    if failed_ci or errors or sweep_degraded:
+        return "DEGRADED", total
+    if stale_heartbeats or idle_prs or review_alerts or sweep_watch:
+        return "WATCH", total
+    return "HEALTHY", 0
+
+
+@login_required
+@require_GET
+def health_stream(request: HttpRequest) -> StreamingHttpResponse:
+    """SSE stream emitting fleet health status every 10 seconds."""
+
+    def event_stream():
+        deadline = time.monotonic() + 3600
+        try:
+            while time.monotonic() < deadline:
+                now = timezone.now()
+                fresh_cutoff = now - timedelta(hours=2)
+                heartbeat_cutoff = now - timedelta(minutes=5)
+                six_hours_ago = now - timedelta(hours=6)
+                day_ago = now - timedelta(hours=24)
+
+                live_machines = set(
+                    TerminalHeartbeat.objects.filter(received_at__gte=heartbeat_cutoff)
+                    .values_list("machine", flat=True)
+                )
+                stale_sessions = list(
+                    AgentSession.objects.filter(
+                        status="active", last_activity__lt=fresh_cutoff
+                    ).exclude(machine__in=live_machines)
+                )
+                stale_heartbeats = [
+                    hb for hb in TerminalHeartbeat.objects.all() if hb.is_stale
+                ]
+                failed_ci = list(
+                    PullRequest.objects.filter(
+                        state=PullRequest.State.OPEN,
+                        ci_status=PullRequest.CIStatus.FAILED,
+                    )
+                )
+                idle_prs = list(
+                    PullRequest.objects.filter(
+                        state=PullRequest.State.OPEN,
+                        last_updated__lt=six_hours_ago,
+                    ).exclude(ci_status=PullRequest.CIStatus.FAILED)
+                )
+                errors = list(
+                    PipelineEvent.objects.filter(
+                        severity__in=[
+                            PipelineEvent.Severity.ERROR,
+                            PipelineEvent.Severity.CRITICAL,
+                        ],
+                        created_at__gte=day_ago,
+                    ).order_by("-created_at")[:50]
+                )
+                review_alerts = list(
+                    ReviewAlert.objects.filter(
+                        status=ReviewAlert.Status.CHANGES_REQUESTED,
+                        is_read=False,
+                    )[:20]
+                )
+
+                sweep_status, sweep_stale, sweep_anomalies = _read_hollis_sweep()
+                status, count = _compute_health_status(
+                    stale_sessions, stale_heartbeats, failed_ci, idle_prs, errors, review_alerts,
+                    sweep_status=sweep_status,
+                    sweep_stale=sweep_stale,
+                    sweep_anomalies=sweep_anomalies,
+                )
+                payload = {"status": status, "incident_count": count}
+                yield f"event: health\ndata: {json.dumps(payload)}\n\n"
+
+                time.sleep(10)
+        except GeneratorExit:
+            return
+
+    response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response
