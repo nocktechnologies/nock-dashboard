@@ -16,4 +16,6 @@ urlpatterns = [
     path("pm/tasks/", views.pm_tasks_all, name="pm-tasks-all"),
     path("pm/<slug:slug>/", views.pm_project_detail, name="pm-project-detail"),
     path("calendar/", views.calendar_view, name="calendar"),
+    # Task 135 — Health beacon SSE
+    path("api/live/health/", views.health_stream, name="live-health-stream"),
 ]
