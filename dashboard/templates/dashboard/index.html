@@ -141,7 +141,7 @@
         </template>
         <i data-lucide="chevron-right" style="width:12px;height:12px;margin-left:var(--space-1);flex-shrink:0;"></i>
       </a>
-      <div class="beacon-breakdown" x-show="showBreakdown && agents.length > 0" x-transition.opacity>
+      <div class="beacon-breakdown" x-show="showBreakdown && agents.some(a => a.status !== 'green')" x-transition.opacity>
         <template x-for="a in agents" :key="a.name">
           <div class="beacon-agent-row">
             <span class="beacon-agent-dot" :class="'beacon-agent-dot-' + a.status"></span>

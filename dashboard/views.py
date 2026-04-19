@@ -577,9 +577,11 @@ def _read_fleet_health() -> tuple[str, bool, list]:
         if ts_str:
             try:
                 ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                if ts.tzinfo is None:
+                    raise ValueError("naive timestamp")
                 is_stale = (datetime.now(dt_timezone.utc) - ts).total_seconds() > 300
-            except ValueError:
-                logger.debug("hollis.health.json has unparseable timestamp %r; treating as stale", ts_str)
+            except (ValueError, TypeError):
+                logger.debug("hollis.health.json has unparseable/naive timestamp %r; treating as stale", ts_str)
         agents = data.get("agents", [])
         summary = data.get("summary", {})
         if is_stale:
@@ -591,7 +593,7 @@ def _read_fleet_health() -> tuple[str, bool, list]:
         else:
             fleet_status = "green"
         return fleet_status, is_stale, agents
-    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+    except (OSError, json.JSONDecodeError, KeyError):
         return "unknown", True, []
 
 
@@ -700,8 +702,13 @@ def health_stream(request: HttpRequest) -> StreamingHttpResponse:
                     fleet_agents=fleet_agents,
                 )
                 agent_pills = [
-                    {"name": a.get("agent", ""), "status": a.get("status", "unknown"), "flags": a.get("flags", [])}
+                    {
+                        "name": a.get("agent", ""),
+                        "status": a.get("status", "unknown"),
+                        "flags": list(a.get("flags") or []),
+                    }
                     for a in fleet_agents
+                    if isinstance(a, dict)
                 ]
                 payload = {"status": status, "incident_count": count, "agents": agent_pills}
                 yield f"event: health\ndata: {json.dumps(payload)}\n\n"
