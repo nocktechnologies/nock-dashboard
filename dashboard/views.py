@@ -1,8 +1,9 @@
 import calendar as cal_module
 import json
 import logging
+import os
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
@@ -567,10 +568,6 @@ def calendar_view(request: HttpRequest) -> HttpResponse:
 
 def _read_fleet_health() -> tuple[str, bool, list]:
     """Read hollis.health.json. Returns (fleet_status, is_stale, agents)."""
-    import os
-    from datetime import datetime
-    from datetime import timezone as dt_timezone
-
     health_path = os.path.expanduser("~/.claude-remote/default/state/hollis.health.json")
     try:
         with open(health_path) as f:
@@ -582,7 +579,7 @@ def _read_fleet_health() -> tuple[str, bool, list]:
                 ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
                 is_stale = (datetime.now(dt_timezone.utc) - ts).total_seconds() > 300
             except ValueError:
-                pass
+                logger.debug("hollis.health.json has unparseable timestamp %r; treating as stale", ts_str)
         agents = data.get("agents", [])
         summary = data.get("summary", {})
         if is_stale:
