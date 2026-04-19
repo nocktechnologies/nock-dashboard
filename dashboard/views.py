@@ -617,9 +617,9 @@ def _compute_health_status(
     elif fleet_status == "green":
         fleet_count = 0
     elif fleet_status == "red":
-        fleet_count = max(1, sum(1 for a in fleet_agents if a.get("status") == "red"))
+        fleet_count = max(1, sum(1 for a in fleet_agents if isinstance(a, dict) and a.get("status") == "red"))
     else:
-        fleet_count = max(1, sum(1 for a in fleet_agents if a.get("status") == "warn"))
+        fleet_count = max(1, sum(1 for a in fleet_agents if isinstance(a, dict) and a.get("status") == "warn"))
 
     total = (
         len(stale_sessions)
@@ -701,15 +701,22 @@ def health_stream(request: HttpRequest) -> StreamingHttpResponse:
                     fleet_stale=fleet_stale,
                     fleet_agents=fleet_agents,
                 )
-                agent_pills = [
-                    {
-                        "name": a.get("agent", ""),
-                        "status": a.get("status", "unknown"),
-                        "flags": list(a.get("flags") or []),
-                    }
-                    for a in fleet_agents
-                    if isinstance(a, dict)
-                ]
+                agent_pills = []
+                for raw in fleet_agents:
+                    if not isinstance(raw, dict):
+                        continue
+                    raw_flags = raw.get("flags")
+                    if raw_flags is None:
+                        flags: list[str] = []
+                    elif isinstance(raw_flags, list):
+                        flags = [str(f) for f in raw_flags]
+                    else:
+                        flags = [str(raw_flags)]
+                    agent_pills.append({
+                        "name": str(raw.get("agent") or ""),
+                        "status": str(raw.get("status") or "unknown"),
+                        "flags": flags,
+                    })
                 payload = {"status": status, "incident_count": count, "agents": agent_pills}
                 yield f"event: health\ndata: {json.dumps(payload)}\n\n"
 
