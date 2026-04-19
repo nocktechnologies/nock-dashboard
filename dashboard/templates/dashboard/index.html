@@ -97,6 +97,27 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
   }
+  .beacon-wrapper { position: relative; display: inline-block; }
+  .beacon-breakdown {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    left: 0;
+    min-width: 220px;
+    background: var(--bg-elevated, var(--bg-surface));
+    border: 1px solid var(--bg-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    z-index: 50;
+    padding: var(--space-2) 0;
+  }
+  .beacon-agent-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-3); font-size: 11px; font-family: var(--font-mono); }
+  .beacon-agent-dot { width: 6px; height: 6px; border-radius: var(--radius-full); flex-shrink: 0; }
+  .beacon-agent-dot-green   { background: var(--color-success); }
+  .beacon-agent-dot-warn    { background: var(--color-warning); }
+  .beacon-agent-dot-red     { background: var(--color-danger); }
+  .beacon-agent-dot-unknown { background: var(--text-muted); }
+  .beacon-agent-name { color: var(--text-secondary); min-width: 60px; }
+  .beacon-agent-flag { color: var(--text-muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 {% endblock %}
 
@@ -109,16 +130,27 @@
     <span class="text-muted text-sm" x-text="new Date().toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'})"></span>
   </div>
 
-  <!-- Health beacon -->
+  <!-- Health Beacon (T190: wired to hollis.health.json fleet signals) -->
   <div x-data="healthBeacon()" x-init="init()" style="margin-bottom:var(--space-4);">
-    <a href="/incidents/" class="health-beacon">
-      <span class="health-dot" :class="dotClass"></span>
-      <span :class="labelClass" x-text="status"></span>
-      <template x-if="incidentCount > 0">
-        <span class="health-count" x-text="incidentCount + ' issue' + (incidentCount === 1 ? '' : 's')"></span>
-      </template>
-      <i data-lucide="chevron-right" style="width:12px;height:12px;margin-left:var(--space-1);flex-shrink:0;"></i>
-    </a>
+    <div class="beacon-wrapper" @mouseenter="showBreakdown=true" @mouseleave="showBreakdown=false">
+      <a href="/incidents/" class="health-beacon">
+        <span class="health-dot" :class="dotClass"></span>
+        <span :class="labelClass" x-text="status"></span>
+        <template x-if="incidentCount > 0">
+          <span class="health-count" x-text="incidentCount + ' issue' + (incidentCount === 1 ? '' : 's')"></span>
+        </template>
+        <i data-lucide="chevron-right" style="width:12px;height:12px;margin-left:var(--space-1);flex-shrink:0;"></i>
+      </a>
+      <div class="beacon-breakdown" x-show="showBreakdown && agents.length > 0" x-transition.opacity>
+        <template x-for="a in agents" :key="a.name">
+          <div class="beacon-agent-row">
+            <span class="beacon-agent-dot" :class="'beacon-agent-dot-' + a.status"></span>
+            <span class="beacon-agent-name" x-text="a.name"></span>
+            <span class="beacon-agent-flag" x-text="a.flags.length ? a.flags[0] : ''"></span>
+          </div>
+        </template>
+      </div>
+    </div>
   </div>
 
   <!-- Nerve Grid -->
@@ -866,6 +898,8 @@ function healthBeacon() {
     return {
         status: 'HEALTHY',
         incidentCount: 0,
+        agents: [],
+        showBreakdown: false,
         _es: null,
 
         get dotClass() { return 'health-dot-' + this.status.toLowerCase(); },
@@ -885,6 +919,7 @@ function healthBeacon() {
                     const d = JSON.parse(e.data);
                     this.status = d.status || 'HEALTHY';
                     this.incidentCount = d.incident_count || 0;
+                    this.agents = d.agents || [];
                 } catch (_) {}
             });
             es.onerror = () => {

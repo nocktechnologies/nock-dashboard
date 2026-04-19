@@ -26,20 +26,37 @@ class ComputeHealthStatusTests(TestCase):
         status, _count = _compute_health_status([], [], [], ["pr1"], [], [])
         self.assertEqual(status, "WATCH")
 
-    def test_sweep_stale_contributes_watch(self) -> None:
+    def test_fleet_stale_contributes_watch(self) -> None:
         status, count = _compute_health_status(
             [], [], [], [], [], [],
-            sweep_status="CLEAN", sweep_stale=True,
+            fleet_status="unknown", fleet_stale=True,
         )
         self.assertEqual(status, "WATCH")
         self.assertEqual(count, 1)
 
-    def test_sweep_incident_contributes_critical(self) -> None:
+    def test_fleet_red_contributes_critical(self) -> None:
         status, _count = _compute_health_status(
             [], [], [], [], [], [],
-            sweep_status="INCIDENT", sweep_stale=False,
+            fleet_status="red", fleet_stale=False,
+            fleet_agents=[{"agent": "kit", "status": "red", "flags": ["tmux_absent"]}],
         )
         self.assertEqual(status, "CRITICAL")
+
+    def test_fleet_warn_contributes_watch(self) -> None:
+        status, _count = _compute_health_status(
+            [], [], [], [], [], [],
+            fleet_status="warn", fleet_stale=False,
+            fleet_agents=[{"agent": "mara", "status": "warn", "flags": ["fc_heartbeat_warn_200s"]}],
+        )
+        self.assertEqual(status, "WATCH")
+
+    def test_fleet_green_no_contribution(self) -> None:
+        status, count = _compute_health_status(
+            [], [], [], [], [], [],
+            fleet_status="green", fleet_stale=False,
+        )
+        self.assertEqual(status, "HEALTHY")
+        self.assertEqual(count, 0)
 
 
 class HealthStreamRouteTests(TestCase):

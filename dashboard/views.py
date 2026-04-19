@@ -565,29 +565,37 @@ def calendar_view(request: HttpRequest) -> HttpResponse:
 # Task 135 — Health beacon (/api/live/health/ SSE)
 # ---------------------------------------------------------------------------
 
-def _read_hollis_sweep() -> tuple[str, bool, list]:
-    """Read Hollis last-sweep.json. Returns (sweep_status, is_stale, anomalies)."""
+def _read_fleet_health() -> tuple[str, bool, list]:
+    """Read hollis.health.json. Returns (fleet_status, is_stale, agents)."""
     import os
     from datetime import datetime
     from datetime import timezone as dt_timezone
 
-    sweep_path = os.path.expanduser("~/.claude-remote/default/state/hollis.last-sweep.json")
+    health_path = os.path.expanduser("~/.claude-remote/default/state/hollis.health.json")
     try:
-        with open(sweep_path) as f:
+        with open(health_path) as f:
             data = json.load(f)
-        sweep_status = data.get("sweep_status", "CLEAN")
-        anomalies = data.get("anomalies") or []
         ts_str = data.get("timestamp", "")
         is_stale = True
         if ts_str:
             try:
                 ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-                is_stale = (datetime.now(dt_timezone.utc) - ts).total_seconds() > 600
+                is_stale = (datetime.now(dt_timezone.utc) - ts).total_seconds() > 300
             except ValueError:
                 pass
-        return sweep_status, is_stale, anomalies
+        agents = data.get("agents", [])
+        summary = data.get("summary", {})
+        if is_stale:
+            fleet_status = "unknown"
+        elif summary.get("red", 0) > 0:
+            fleet_status = "red"
+        elif summary.get("warn", 0) > 0:
+            fleet_status = "warn"
+        else:
+            fleet_status = "green"
+        return fleet_status, is_stale, agents
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        return "CLEAN", True, []
+        return "unknown", True, []
 
 
 def _compute_health_status(
@@ -597,21 +605,22 @@ def _compute_health_status(
     idle_prs: list,
     errors: list,
     review_alerts: list,
-    sweep_status: str = "CLEAN",
-    sweep_stale: bool = False,
-    sweep_anomalies: list | None = None,
+    fleet_status: str = "green",
+    fleet_stale: bool = False,
+    fleet_agents: list | None = None,
 ) -> tuple[str, int]:
     """Return (status_label, incident_count) for the health beacon."""
-    sweep_anomalies = sweep_anomalies or []
-    sweep_critical = sweep_status == "INCIDENT" and not sweep_stale
-    sweep_degraded = sweep_status == "DRIFT_DETECTED" and not sweep_stale
-    sweep_watch = sweep_status == "WATCH" or sweep_stale
-    if sweep_stale:
-        sweep_count = 1
-    elif sweep_status == "CLEAN":
-        sweep_count = 0
+    fleet_agents = fleet_agents or []
+    fleet_critical = fleet_status == "red" and not fleet_stale
+    fleet_watch = fleet_status in ("warn", "unknown") or fleet_stale
+    if fleet_stale or fleet_status == "unknown":
+        fleet_count = 1
+    elif fleet_status == "green":
+        fleet_count = 0
+    elif fleet_status == "red":
+        fleet_count = max(1, sum(1 for a in fleet_agents if a.get("status") == "red"))
     else:
-        sweep_count = max(1, len(sweep_anomalies))
+        fleet_count = max(1, sum(1 for a in fleet_agents if a.get("status") == "warn"))
 
     total = (
         len(stale_sessions)
@@ -620,13 +629,13 @@ def _compute_health_status(
         + len(idle_prs)
         + len(errors)
         + len(review_alerts)
-        + sweep_count
+        + fleet_count
     )
-    if stale_sessions or sweep_critical or total >= 5:
+    if stale_sessions or fleet_critical or total >= 5:
         return "CRITICAL", total
-    if failed_ci or errors or sweep_degraded:
+    if failed_ci or errors:
         return "DEGRADED", total
-    if stale_heartbeats or idle_prs or review_alerts or sweep_watch:
+    if stale_heartbeats or idle_prs or review_alerts or fleet_watch:
         return "WATCH", total
     return "HEALTHY", 0
 
@@ -686,14 +695,18 @@ def health_stream(request: HttpRequest) -> StreamingHttpResponse:
                     )[:20]
                 )
 
-                sweep_status, sweep_stale, sweep_anomalies = _read_hollis_sweep()
+                fleet_status, fleet_stale, fleet_agents = _read_fleet_health()
                 status, count = _compute_health_status(
                     stale_sessions, stale_heartbeats, failed_ci, idle_prs, errors, review_alerts,
-                    sweep_status=sweep_status,
-                    sweep_stale=sweep_stale,
-                    sweep_anomalies=sweep_anomalies,
+                    fleet_status=fleet_status,
+                    fleet_stale=fleet_stale,
+                    fleet_agents=fleet_agents,
                 )
-                payload = {"status": status, "incident_count": count}
+                agent_pills = [
+                    {"name": a.get("agent", ""), "status": a.get("status", "unknown"), "flags": a.get("flags", [])}
+                    for a in fleet_agents
+                ]
+                payload = {"status": status, "incident_count": count, "agents": agent_pills}
                 yield f"event: health\ndata: {json.dumps(payload)}\n\n"
 
                 time.sleep(10)
