@@ -43,9 +43,9 @@
     </div>
 
     <!-- New Session Modal -->
-    <div x-show="showNewSession" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" @click.self="showNewSession = false">
+    <div x-show="showNewSession" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" role="dialog" aria-modal="true" aria-labelledby="new-session-title" @click.self="showNewSession = false" @keydown.escape.window="showNewSession = false">
         <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-6">
-            <h3 class="text-lg font-semibold mb-4">New Claude Code Session</h3>
+            <h3 id="new-session-title" class="text-lg font-semibold mb-4">New Claude Code Session</h3>
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm text-gray-400 mb-1">Repository</label>
@@ -80,9 +80,9 @@
     </div>
 
     <!-- Kill Confirmation -->
-    <div x-show="confirmKill" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" @click.self="confirmKill = false">
+    <div x-show="confirmKill" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" role="dialog" aria-modal="true" aria-labelledby="kill-session-title" @click.self="confirmKill = false" @keydown.escape.window="confirmKill = false">
         <div class="bg-gray-900 border border-red-800 rounded-xl w-full max-w-sm p-6 text-center">
-            <h3 class="text-lg font-semibold text-red-400 mb-2">Kill All Sessions?</h3>
+            <h3 id="kill-session-title" class="text-lg font-semibold text-red-400 mb-2">Kill All Sessions?</h3>
             <p class="text-sm text-gray-400 mb-4">This will terminate all running Claude Code sessions immediately.</p>
             <div class="flex gap-3">
                 <button @click="killAll()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 rounded-lg transition min-h-[44px]">
