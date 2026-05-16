@@ -104,8 +104,9 @@ Respond to nitpicks with: "Acknowledged — deferring to maintainer preference."
 2. Run linters
 3. Commit and push
 4. Create PR (or update existing)
-5. Update Asana task with: what was done, PR number, test count
+5. Update NockCC with: what was done, PR number, test count
 6. Mark `.workflow-state.json` as complete
+7. File a Session Report via `nockcc_session_report_create` or `POST /api/sessions/reports/` with session_id, agent_name, duration, task/PR/message/decision counts, handoff_written, standing-order pass/total counts, concise notes, and 2-5 highlights. Include `nock-dashboard` in the session id or notes.
 
 ## What NOT to Do
 - Do NOT merge your own PRs (Kevin or Mara reviews first)
