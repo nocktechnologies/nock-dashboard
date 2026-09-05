@@ -42,7 +42,7 @@ def migrate_payment_methods_reverse(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('spend', '0003_add_expense_model_and_subscription_providers'),
+        ('spend', '0004_revenue_expense_receipt_expense_receipt_filename'),
     ]
 
     operations = [
