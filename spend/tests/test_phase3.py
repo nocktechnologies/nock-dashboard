@@ -65,7 +65,7 @@ class AddExpenseViewTests(TestCase):
             "subtotal": "99.00",
             "tax": "8.25",
             "total": "107.25",
-            "payment_method": "visa_5540",
+            "payment_method": "card_b",
             "date": "2026-03-15",
         })
         assert resp.status_code == 302  # redirect on success
@@ -83,7 +83,7 @@ class AddExpenseViewTests(TestCase):
             "subtotal": "100.00",
             "tax": "10.00",
             "total": "",
-            "payment_method": "visa_5540",
+            "payment_method": "card_b",
             "date": "2026-03-15",
         })
         assert resp.status_code == 302
@@ -138,7 +138,7 @@ class PnLViewTests(TestCase):
             vendor="Anthropic", description="API",
             category="software", subtotal=Decimal("200"),
             tax=Decimal("0"), total=Decimal("200"),
-            payment_method="visa_5540", date=date(2026, 3, 1),
+            payment_method="card_b", date=date(2026, 3, 1),
         )
         resp = self.client.get("/spend/pnl/")
         assert resp.context["net_position"] == Decimal("4800")
@@ -160,13 +160,13 @@ class TaxViewTests(TestCase):
             vendor="Apple", description="MacBook",
             category="hardware", subtotal=Decimal("1400"),
             tax=Decimal("114"), total=Decimal("1514"),
-            payment_method="visa_5540", date=date(2026, 2, 15),
+            payment_method="card_b", date=date(2026, 2, 15),
         )
         Expense.objects.create(
             vendor="TX SecState", description="LLC filing",
             category="formation", subtotal=Decimal("300"),
             tax=Decimal("0"), total=Decimal("300"),
-            payment_method="visa_5540", date=date(2026, 2, 10),
+            payment_method="card_b", date=date(2026, 2, 10),
         )
         resp = self.client.get("/spend/tax/")
         assert resp.context["grand_total"] == Decimal("1814")
@@ -180,7 +180,7 @@ class TaxViewTests(TestCase):
             vendor="Apple", description="MacBook",
             category="hardware", subtotal=Decimal("1400"),
             tax=Decimal("114"), total=Decimal("1514"),
-            payment_method="visa_5540", date=date(2026, 2, 15),
+            payment_method="card_b", date=date(2026, 2, 15),
         )
         resp = self.client.get("/spend/tax/export/")
         assert resp.status_code == 200
@@ -195,7 +195,7 @@ class ExpenseReceiptTests(TestCase):
             vendor="Test", description="Test",
             category="software", subtotal=Decimal("50"),
             tax=Decimal("0"), total=Decimal("50"),
-            payment_method="visa_5540", date=date(2026, 3, 1),
+            payment_method="card_b", date=date(2026, 3, 1),
         )
         assert hasattr(e, "receipt")
         assert hasattr(e, "receipt_filename")

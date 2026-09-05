@@ -84,12 +84,12 @@ class Expense(models.Model):
         ("other", "Other"),
     ]
     PAYMENT_METHODS = [
-        ("amex_1009", "Amex -1009 (Delta SkyMiles)"),
-        ("visa_5540", "Visa -5540"),
-        ("amex_8515", "Amex -8515"),
+        ("card_a", "Card A"),
+        ("card_b", "Card B"),
+        ("card_c", "Card C"),
         ("stripe_link", "Link (Stripe)"),
-        ("paypal_cap1", "PayPal → Capital One ••2250"),
-        ("paypal", "PayPal (kkwills13@gmail.com)"),
+        ("paypal_bank", "PayPal (bank)"),
+        ("paypal", "PayPal"),
         ("other", "Other"),
     ]
 
