@@ -240,7 +240,7 @@ class SpendViewTests(TestCase):
             subtotal=Decimal("100.00"),
             tax=Decimal("8.25"),
             total=Decimal("108.25"),
-            payment_method="amex_1009",
+            payment_method="card_a",
             date=date.today(),
         )
         resp = self.client.get("/spend/")
@@ -252,12 +252,12 @@ class SpendViewTests(TestCase):
         Expense.objects.create(
             vendor="Soft Co", description="Soft", category="software",
             subtotal=Decimal("50.00"), tax=Decimal("0"), total=Decimal("50.00"),
-            payment_method="amex_1009", date=date.today(),
+            payment_method="card_a", date=date.today(),
         )
         Expense.objects.create(
             vendor="Hard Co", description="Hard", category="hardware",
             subtotal=Decimal("100.00"), tax=Decimal("0"), total=Decimal("100.00"),
-            payment_method="visa_5540", date=date.today(),
+            payment_method="card_b", date=date.today(),
         )
         resp = self.client.get("/spend/?expense_category=software")
         self.assertEqual(resp.status_code, 200)
@@ -268,14 +268,14 @@ class SpendViewTests(TestCase):
         Expense.objects.create(
             vendor="Amex Co", description="Amex", category="software",
             subtotal=Decimal("50.00"), tax=Decimal("0"), total=Decimal("50.00"),
-            payment_method="amex_1009", date=date.today(),
+            payment_method="card_a", date=date.today(),
         )
         Expense.objects.create(
             vendor="Visa Co", description="Visa", category="software",
             subtotal=Decimal("100.00"), tax=Decimal("0"), total=Decimal("100.00"),
-            payment_method="visa_5540", date=date.today(),
+            payment_method="card_b", date=date.today(),
         )
-        resp = self.client.get("/spend/?expense_payment=amex_1009")
+        resp = self.client.get("/spend/?expense_payment=card_a")
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Amex Co")
         self.assertNotContains(resp, "Visa Co")
@@ -284,7 +284,7 @@ class SpendViewTests(TestCase):
         Expense.objects.create(
             vendor="Refund Co", description="Refund test", category="software",
             subtotal=Decimal("36.21"), tax=Decimal("0"), total=Decimal("36.21"),
-            is_refund=True, payment_method="amex_8515", date=date.today(),
+            is_refund=True, payment_method="card_c", date=date.today(),
         )
         resp = self.client.get("/spend/")
         self.assertEqual(resp.status_code, 200)
@@ -315,7 +315,7 @@ class SpendAPITests(TestCase):
         Expense.objects.create(
             vendor="Test", description="t", category="software",
             subtotal=Decimal("100.00"), tax=Decimal("8.00"), total=Decimal("108.00"),
-            payment_method="amex_1009", date=date.today(),
+            payment_method="card_a", date=date.today(),
         )
         resp = self.client.get("/spend/api/summary/")
         body = resp.json()
@@ -350,12 +350,12 @@ class ExpensesAPITests(TestCase):
         Expense.objects.create(
             vendor="V1", description="d", category="software",
             subtotal=Decimal("10.00"), tax=Decimal("0"), total=Decimal("10.00"),
-            payment_method="amex_1009", date=date.today(),
+            payment_method="card_a", date=date.today(),
         )
         Expense.objects.create(
             vendor="V2", description="d", category="hardware",
             subtotal=Decimal("20.00"), tax=Decimal("0"), total=Decimal("20.00"),
-            payment_method="visa_5540", date=date.today(),
+            payment_method="card_b", date=date.today(),
         )
         resp = self.client.get("/spend/api/expenses/")
         self.assertEqual(resp.status_code, 200)
@@ -367,12 +367,12 @@ class ExpensesAPITests(TestCase):
         Expense.objects.create(
             vendor="V1", description="d", category="software",
             subtotal=Decimal("10.00"), tax=Decimal("0"), total=Decimal("10.00"),
-            payment_method="amex_1009", date=date.today(),
+            payment_method="card_a", date=date.today(),
         )
         Expense.objects.create(
             vendor="V2", description="d", category="hardware",
             subtotal=Decimal("20.00"), tax=Decimal("0"), total=Decimal("20.00"),
-            payment_method="visa_5540", date=date.today(),
+            payment_method="card_b", date=date.today(),
         )
         resp = self.client.get("/spend/api/expenses/?category=software")
         body = resp.json()
@@ -383,14 +383,14 @@ class ExpensesAPITests(TestCase):
         Expense.objects.create(
             vendor="V1", description="d", category="software",
             subtotal=Decimal("10.00"), tax=Decimal("0"), total=Decimal("10.00"),
-            payment_method="amex_1009", date=date.today(),
+            payment_method="card_a", date=date.today(),
         )
         Expense.objects.create(
             vendor="V2", description="d", category="software",
             subtotal=Decimal("20.00"), tax=Decimal("0"), total=Decimal("20.00"),
-            payment_method="visa_5540", date=date.today(),
+            payment_method="card_b", date=date.today(),
         )
-        resp = self.client.get("/spend/api/expenses/?payment_method=visa_5540")
+        resp = self.client.get("/spend/api/expenses/?payment_method=card_b")
         body = resp.json()
         self.assertEqual(len(body["data"]), 1)
         self.assertEqual(body["data"][0]["vendor"], "V2")
@@ -399,7 +399,7 @@ class ExpensesAPITests(TestCase):
         Expense.objects.create(
             vendor="Refund Co", description="refund", category="software",
             subtotal=Decimal("36.21"), tax=Decimal("0"), total=Decimal("36.21"),
-            is_refund=True, payment_method="amex_8515", date=date.today(),
+            is_refund=True, payment_method="card_c", date=date.today(),
         )
         resp = self.client.get("/spend/api/expenses/")
         body = resp.json()
@@ -452,7 +452,7 @@ class ExpenseModelTests(TestCase):
             subtotal=Decimal("200.00"),
             tax=Decimal("11.60"),
             total=Decimal("211.60"),
-            payment_method="amex_1009",
+            payment_method="card_a",
             date=date.today(),
             reference="INV-001",
         )
@@ -467,7 +467,7 @@ class ExpenseModelTests(TestCase):
             tax=Decimal("0"),
             total=Decimal("36.21"),
             is_refund=True,
-            payment_method="amex_8515",
+            payment_method="card_c",
             date=date.today(),
         )
         self.assertIn("REFUND", str(exp))
@@ -492,12 +492,12 @@ class ExpenseModelTests(TestCase):
         Expense.objects.create(
             vendor="A Vendor", description="d", category="software",
             subtotal=Decimal("10.00"), tax=Decimal("0"), total=Decimal("10.00"),
-            payment_method="amex_1009", date=date(2026, 3, 1),
+            payment_method="card_a", date=date(2026, 3, 1),
         )
         Expense.objects.create(
             vendor="B Vendor", description="d", category="software",
             subtotal=Decimal("20.00"), tax=Decimal("0"), total=Decimal("20.00"),
-            payment_method="amex_1009", date=date(2026, 3, 5),
+            payment_method="card_a", date=date(2026, 3, 5),
         )
         expenses = list(Expense.objects.all())
         # Most recent first
@@ -513,8 +513,8 @@ class ExpenseModelTests(TestCase):
 
     def test_expense_payment_method_choices(self) -> None:
         methods = [m[0] for m in Expense.PAYMENT_METHODS]
-        self.assertIn("amex_1009", methods)
-        self.assertIn("visa_5540", methods)
+        self.assertIn("card_a", methods)
+        self.assertIn("card_b", methods)
         self.assertIn("stripe_link", methods)
         self.assertIn("paypal", methods)
 
@@ -694,12 +694,12 @@ class ExpenseTotalsTests(TestCase):
         Expense.objects.create(
             vendor="V1", description="d", category="software",
             subtotal=Decimal("100.00"), tax=Decimal("8.00"), total=Decimal("108.00"),
-            payment_method="amex_1009", date=date.today(),
+            payment_method="card_a", date=date.today(),
         )
         Expense.objects.create(
             vendor="V2", description="refund", category="software",
             subtotal=Decimal("36.21"), tax=Decimal("0"), total=Decimal("36.21"),
-            is_refund=True, payment_method="amex_8515", date=date.today(),
+            is_refund=True, payment_method="card_c", date=date.today(),
         )
         from spend.views import _expense_totals
         totals = _expense_totals()
@@ -717,12 +717,12 @@ class ExpenseTotalsTests(TestCase):
         Expense.objects.create(
             vendor="V1", description="d", category="software",
             subtotal=Decimal("100.00"), tax=Decimal("0"), total=Decimal("100.00"),
-            payment_method="amex_1009", date=date.today(),
+            payment_method="card_a", date=date.today(),
         )
         Expense.objects.create(
             vendor="V2", description="d", category="hardware",
             subtotal=Decimal("200.00"), tax=Decimal("0"), total=Decimal("200.00"),
-            payment_method="visa_5540", date=date.today(),
+            payment_method="card_b", date=date.today(),
         )
         from spend.views import _category_breakdown
         breakdown = _category_breakdown()
@@ -735,12 +735,12 @@ class ExpenseTotalsTests(TestCase):
         Expense.objects.create(
             vendor="V1", description="d", category="software",
             subtotal=Decimal("100.00"), tax=Decimal("0"), total=Decimal("100.00"),
-            payment_method="amex_1009", date=date.today(),
+            payment_method="card_a", date=date.today(),
         )
         Expense.objects.create(
             vendor="V2", description="d", category="software",
             subtotal=Decimal("200.00"), tax=Decimal("0"), total=Decimal("200.00"),
-            payment_method="visa_5540", date=date.today(),
+            payment_method="card_b", date=date.today(),
         )
         from spend.views import _payment_method_breakdown
         breakdown = _payment_method_breakdown()
